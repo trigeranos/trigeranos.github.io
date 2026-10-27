@@ -7,12 +7,25 @@
 <meta name="description" content="TriGeranos(トリゲラノス) - スマートフォン向けゲームアプリの開発">
 <style>
   :root {
-    --bg: #0f1115;
-    --bg-soft: #161a21;
-    --fg: #f2f3f5;
-    --fg-soft: #a9afbb;
-    --accent: #6ee7b7;
-    --border: #262b34;
+    --bg: #ffffff;
+    --bg-soft: #ffffff;
+    --fg: #161616;
+    --fg-soft: #666666;
+    --accent: #c8102e;
+    --accent-yellow: #f2b705;
+    --border: #1a1a1a;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212;
+      --bg-soft: #1a1a1a;
+      --fg: #f5f5f5;
+      --fg-soft: #aaaaaa;
+      --accent: #ff4d5e;
+      --accent-yellow: #ffd54f;
+      --border: #333333;
+    }
   }
 
   * {
@@ -40,10 +53,27 @@
     width: 100%;
     max-width: 560px;
     background: var(--bg-soft);
-    border: 1px solid var(--border);
+    border: 2px solid var(--border);
     border-radius: 16px;
     padding: 48px 36px;
   }
+
+  .stripe {
+    display: flex;
+    height: 4px;
+    width: 64px;
+    margin-top: 14px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .stripe span {
+    flex: 1;
+  }
+
+  .stripe span:nth-child(1) { background: var(--fg); }
+  .stripe span:nth-child(2) { background: var(--accent); }
+  .stripe span:nth-child(3) { background: var(--accent-yellow); }
 
   .logo {
     font-size: 28px;
@@ -99,23 +129,13 @@
     color: var(--fg-soft);
     font-size: 13px;
   }
-
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f7f8fa;
-      --bg-soft: #ffffff;
-      --fg: #1a1d23;
-      --fg-soft: #666d7a;
-      --accent: #0f9d6e;
-      --border: #e3e6eb;
-    }
-  }
 </style>
 </head>
 <body>
   <main class="card">
     <div class="logo">Tri<span>Geranos</span></div>
     <div class="tagline">トリゲラノス</div>
+    <div class="stripe"><span></span><span></span><span></span></div>
 
     <div class="section">
       <h2>事業内容</h2>
