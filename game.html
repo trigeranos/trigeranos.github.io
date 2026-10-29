@@ -1,0 +1,3170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ダンボール迷宮</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yomogi&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap">
+<style>
+:root{
+  /* --- paper / ui tokens --- */
+  --paper:#f2e8d3;
+  --paper-2:#e8dab8;
+  --ink:#3b2a18;
+  --ink-soft:#6f5535;
+  --surface:#fbf3e2;
+  --surface-2:#efe1c1;
+  --border:#cdb98a;
+  --accent:#e2551f;
+  --accent-ink:#ffffff;
+  --shadow:rgba(59,42,24,.28);
+
+  /* --- cardboard tones (ui chrome) --- */
+  --board-1:#c9a06a;
+  --board-2:#af8752;
+  --board-3:#8a6539;
+  --board-4:#5f4326;
+  --tape:#ecdfba;
+  --tape-edge:#cdb98a;
+
+  /* --- renderer palette (read into JS) --- */
+  --wall-ns:#caa06a;
+  --wall-ew:#b6875a;
+  --ceiling-a:#e7d9b6;
+  --ceiling-b:#cbb98d;
+  --floor-a:#a98a5c;
+  --floor-b:#7c6039;
+  --fog:#9c8459;
+  --goal:#3f8f5f;
+  --goal-glow:#b7e6c4;
+
+  --bg:var(--paper);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#1c140b; --paper-2:#241a10; --ink:#f1e3c6; --ink-soft:#c9ac82;
+    --surface:#241a10; --surface-2:#2f2313; --border:#4a3a22;
+    --accent:#ff6b3d; --accent-ink:#1c140b; --shadow:rgba(0,0,0,.55);
+    --board-1:#7a5c37; --board-2:#5f4527; --board-3:#43301b; --board-4:#241a10;
+    --tape:#5a4529; --tape-edge:#3d2f1c;
+    --wall-ns:#6d5232; --wall-ew:#5a4128;
+    --ceiling-a:#241a10; --ceiling-b:#17110a;
+    --floor-a:#241a10; --floor-b:#120d07;
+    --fog:#1c1409; --goal:#57d68c; --goal-glow:#9df0bd;
+    --bg:var(--paper); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1c140b; --paper-2:#241a10; --ink:#f1e3c6; --ink-soft:#c9ac82;
+  --surface:#241a10; --surface-2:#2f2313; --border:#4a3a22;
+  --accent:#ff6b3d; --accent-ink:#1c140b; --shadow:rgba(0,0,0,.55);
+  --board-1:#7a5c37; --board-2:#5f4527; --board-3:#43301b; --board-4:#241a10;
+  --tape:#5a4529; --tape-edge:#3d2f1c;
+  --wall-ns:#6d5232; --wall-ew:#5a4128;
+  --ceiling-a:#241a10; --ceiling-b:#17110a;
+  --floor-a:#241a10; --floor-b:#120d07;
+  --fog:#1c1409; --goal:#57d68c; --goal-glow:#9df0bd;
+  --bg:var(--paper); color-scheme:dark;
+}
+
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif;
+  overscroll-behavior:none; -webkit-tap-highlight-color:transparent;
+}
+h1,h2,.hand{ font-family:'Yomogi','Zen Maru Gothic',sans-serif; text-wrap:balance; }
+
+#app{ position:relative; width:100%; height:100vh; overflow:hidden; }
+
+.screen{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  padding:24px; overflow-y:auto;
+}
+.screen[hidden]{ display:none !important; }
+
+/* ---------- cardboard box card ---------- */
+.box-card{
+  position:relative; max-width:560px; width:100%;
+  background:linear-gradient(175deg, var(--board-1), var(--board-2) 70%);
+  border:2px solid var(--board-3);
+  border-radius:10px;
+  padding:44px 36px 36px;
+  box-shadow:0 22px 50px var(--shadow), inset 0 0 0 1px rgba(255,255,255,.08);
+  text-align:center;
+  color:var(--ink);
+}
+.box-card::before{
+  content:""; position:absolute; inset:10px;
+  border:2px dashed rgba(59,42,24,.18);
+  border-radius:6px; pointer-events:none;
+}
+.tape-strip{
+  position:absolute; top:-16px; left:50%; transform:translateX(-50%) rotate(-2deg);
+  width:150px; height:38px;
+  background:repeating-linear-gradient(115deg, var(--tape), var(--tape) 6px, var(--tape-edge) 6px, var(--tape-edge) 8px);
+  opacity:.92; box-shadow:0 4px 10px var(--shadow);
+  border-radius:2px;
+}
+.corner-tape{
+  position:absolute; width:64px; height:26px;
+  background:repeating-linear-gradient(115deg, var(--tape), var(--tape) 6px, var(--tape-edge) 6px, var(--tape-edge) 8px);
+  opacity:.85; box-shadow:0 3px 6px var(--shadow); border-radius:2px;
+}
+.corner-tape.tl{ top:-10px; left:-14px; transform:rotate(-45deg); }
+.corner-tape.br{ bottom:-10px; right:-14px; transform:rotate(-45deg); }
+
+.box-card h1{
+  margin:14px 0 6px; font-size:clamp(2rem,7vw,3rem); line-height:1.1; color:var(--ink);
+}
+.box-card h1 span{ color:var(--accent); display:block; font-size:1.15em; }
+.tagline{ margin:0 0 22px; color:var(--ink-soft); font-size:1rem; }
+
+.howto{
+  text-align:left; background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:16px 18px; margin:0 0 24px; font-size:.92rem; color:var(--ink);
+  line-height:1.7;
+}
+.howto b{ font-family:'Yomogi',sans-serif; color:var(--accent-ink,var(--ink)); }
+.howto .row{ display:flex; gap:10px; align-items:baseline; }
+.howto .row + .row{ margin-top:4px; }
+.key{
+  display:inline-block; min-width:1.6em; padding:.05em .4em; border-radius:6px;
+  background:var(--surface-2); border:1px solid var(--border); font-size:.85em;
+  font-variant-numeric:tabular-nums;
+}
+
+.tape-btn{
+  appearance:none; border:none; cursor:pointer; font-family:'Zen Maru Gothic',sans-serif;
+  font-weight:800; font-size:1.15rem; color:var(--accent-ink);
+  background:var(--accent); padding:16px 34px; border-radius:999px;
+  box-shadow:0 10px 0 var(--accent-ink-shadow,rgba(0,0,0,.2)), 0 14px 30px var(--shadow);
+  transition:transform .12s ease;
+}
+.tape-btn:hover{ transform:translateY(-2px); }
+.tape-btn:active{ transform:translateY(2px); }
+.tape-btn:focus-visible{ outline:3px solid var(--ink); outline-offset:3px; }
+.tbtn:focus-visible, .quit-btn:focus-visible{ outline:3px solid var(--accent); outline-offset:2px; }
+
+.best-time{ margin:18px 0 0; font-size:.88rem; color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+.level-list{ display:flex; gap:6px; justify-content:center; margin:18px 0 0; flex-wrap:wrap; }
+.level-chip{
+  font-size:.72rem; padding:4px 10px; border-radius:999px; background:var(--surface);
+  border:1px solid var(--border); color:var(--ink-soft);
+}
+
+/* ---------- game screen ---------- */
+#scr-game{ padding:0; }
+#game-wrap{ position:relative; width:100%; height:100%; background:#000; }
+#view{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+.vignette{
+  position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.35) 100%);
+}
+
+#hud{ position:absolute; top:14px; left:14px; right:14px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; pointer-events:none; }
+.hud-left{ display:flex; flex-direction:column; gap:8px; pointer-events:auto; }
+.hud-badge{
+  font-family:'Zen Maru Gothic',sans-serif; font-weight:700; font-size:.85rem;
+  color:var(--ink); background:var(--tape); border:1px solid var(--tape-edge);
+  padding:7px 14px; border-radius:7px; box-shadow:0 4px 10px var(--shadow);
+  transform:rotate(-1.5deg); display:flex; align-items:center; gap:8px;
+}
+#hud-timer{ font-variant-numeric:tabular-nums; }
+.compass-badge{ transform:rotate(1deg); }
+.compass-arrow{ display:inline-block; transition:transform .15s linear; }
+.quit-btn{
+  pointer-events:auto; font-family:'Zen Maru Gothic',sans-serif; font-weight:700; font-size:.78rem;
+  color:var(--ink); background:var(--surface); border:1px solid var(--border);
+  padding:6px 12px; border-radius:999px; cursor:pointer; align-self:flex-start;
+}
+.hud-right{ display:flex; flex-direction:column; align-items:flex-end; gap:6px; pointer-events:auto; }
+#minimap{
+  background:var(--surface); border:2px solid var(--tape-edge); border-radius:10px;
+  box-shadow:0 6px 16px var(--shadow); transform:rotate(1deg);
+}
+#minimap[hidden]{ display:none; }
+.hint-btn{
+  pointer-events:auto; appearance:none; cursor:pointer; border:none;
+  font-family:'Zen Maru Gothic',sans-serif; font-weight:700; font-size:.8rem; line-height:1.3;
+  color:var(--accent-ink); background:var(--accent); padding:10px 14px; border-radius:10px;
+  box-shadow:0 6px 14px var(--shadow); width:140px; text-align:center;
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+}
+.hint-btn small{ font-weight:500; font-size:.66rem; opacity:.92; }
+.hint-btn[hidden]{ display:none; }
+.hint-countdown{
+  pointer-events:none; font-size:.72rem; color:var(--ink-soft); background:var(--surface);
+  border:1px solid var(--border); border-radius:999px; padding:3px 10px; font-variant-numeric:tabular-nums;
+}
+
+#level-toast{
+  position:absolute; top:40%; left:50%; transform:translate(-50%,-50%);
+  background:var(--tape); border:1px solid var(--tape-edge); color:var(--ink);
+  padding:14px 26px; border-radius:8px; font-family:'Yomogi',sans-serif; font-size:1.3rem;
+  box-shadow:0 10px 24px var(--shadow); text-align:center; pointer-events:none;
+  opacity:0; transition:opacity .5s ease;
+}
+#level-toast.show{ opacity:1; }
+#level-toast small{ display:block; font-family:'Zen Maru Gothic',sans-serif; font-size:.7rem; color:var(--ink-soft); margin-top:2px; }
+
+#touch-controls{
+  display:none; position:absolute; left:0; right:0; bottom:18px;
+  justify-content:space-between; align-items:flex-end; padding:0 18px; pointer-events:none;
+}
+@media (pointer:coarse){ #touch-controls{ display:flex; } }
+.tbtn{
+  pointer-events:auto; touch-action:none; appearance:none; border:none; cursor:pointer;
+  width:64px; height:64px; border-radius:16px; font-size:1.5rem; color:var(--ink);
+  background:var(--tape); border:1px solid var(--tape-edge); box-shadow:0 6px 14px var(--shadow);
+}
+.tbtn:active{ background:var(--board-1); }
+.dpad{ display:flex; gap:10px; align-items:flex-end; }
+.dpad .tbtn.fwd{ width:64px; height:64px; }
+.updown{ display:flex; flex-direction:column; gap:10px; }
+
+/* ---------- 広告(ヒント解放)モーダル ---------- */
+#ad-overlay, #share-overlay{
+  position:fixed; inset:0; z-index:50; background:rgba(20,14,7,.78);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+#ad-overlay[hidden], #share-overlay[hidden]{ display:none; }
+.ad-card{
+  width:100%; max-width:360px; background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.5); text-align:center;
+}
+.ad-label{
+  font-size:.66rem; letter-spacing:.08em; color:var(--ink-soft); background:var(--surface-2);
+  padding:6px 0;
+}
+.ad-visual{
+  height:170px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px;
+  background:repeating-linear-gradient(135deg, var(--board-1), var(--board-1) 18px, var(--board-2) 18px, var(--board-2) 36px);
+  color:var(--ink); font-family:'Yomogi',sans-serif; font-size:1.4rem;
+}
+.ad-visual span{
+  font-family:'Zen Maru Gothic',sans-serif; font-size:.68rem; color:var(--ink-soft);
+  background:var(--surface); padding:4px 10px; border-radius:999px;
+}
+.ad-body{ padding:16px 18px 20px; }
+.ad-body p{ margin:0 0 14px; font-size:.85rem; color:var(--ink-soft); }
+.ad-progress{ height:6px; border-radius:999px; background:var(--surface-2); overflow:hidden; margin:0 0 14px; }
+.ad-progress-bar{ height:100%; width:0%; background:var(--accent); transition:width 1s linear; }
+.ad-close{
+  appearance:none; border:none; width:100%; padding:12px; border-radius:10px;
+  font-family:'Zen Maru Gothic',sans-serif; font-weight:800; font-size:.95rem;
+  background:var(--surface-2); color:var(--ink-soft); cursor:not-allowed;
+}
+.ad-close.ready{ background:var(--accent); color:var(--accent-ink); cursor:pointer; }
+.ad-close:focus-visible{ outline:3px solid var(--ink); outline-offset:2px; }
+.share-close-btn{ margin-top:8px; cursor:pointer; background:transparent; color:var(--ink-soft); }
+.share-url-input{
+  width:100%; box-sizing:border-box; font-family:'Zen Maru Gothic',sans-serif; font-size:.78rem;
+  padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2);
+  color:var(--ink); margin:0 0 12px;
+}
+
+/* ---------- 挑戦状(共有リンク) ---------- */
+.challenge-banner{
+  background:var(--accent); color:var(--accent-ink); font-weight:700; font-size:.88rem;
+  border-radius:10px; padding:10px 16px; margin:0 0 18px;
+}
+.challenge-result{
+  font-size:.9rem; font-weight:700; color:var(--ink); background:var(--surface);
+  border:1px solid var(--border); border-radius:10px; padding:10px 16px; margin:0 0 18px;
+}
+.challenge-result.win{ color:var(--goal); }
+.btn-col{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+.tape-btn-alt{
+  background:var(--surface-2); color:var(--ink); box-shadow:0 6px 0 var(--border), 0 10px 20px var(--shadow);
+  font-size:.9rem; padding:12px 26px;
+}
+
+/* ---------- 音ミュートボタン ---------- */
+.mute-btn{
+  position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:40;
+  width:38px; height:38px; border-radius:50%; appearance:none; cursor:pointer;
+  background:var(--tape); border:1px solid var(--tape-edge); box-shadow:0 4px 10px var(--shadow);
+  font-size:1rem; color:var(--ink); display:flex; align-items:center; justify-content:center;
+}
+.mute-btn:focus-visible{ outline:3px solid var(--accent); outline-offset:2px; }
+
+/* ---------- level clear / finish ---------- */
+.box-card .stat-row{ display:flex; justify-content:center; gap:22px; margin:18px 0 26px; flex-wrap:wrap; }
+.stat{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 18px; min-width:120px; }
+.stat .num{ display:block; font-size:1.4rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.stat .lbl{ display:block; font-size:.72rem; color:var(--ink-soft); margin-top:2px; }
+.new-best{ color:var(--goal); font-weight:800; }
+
+@media (prefers-reduced-motion:reduce){ .tape-btn, .tbtn{ transition:none; } }
+
+/* ---------- マルチプレイ: モード選択 ---------- */
+.mode-toggle{ display:flex; gap:8px; justify-content:center; margin:0 0 14px; }
+.mode-btn{
+  appearance:none; cursor:pointer; font-family:'Zen Maru Gothic',sans-serif; font-weight:700;
+  font-size:.86rem; color:var(--ink); background:var(--surface); border:1px solid var(--border);
+  padding:9px 18px; border-radius:999px; transition:transform .12s ease;
+}
+.mode-btn.active{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); transform:translateY(-1px); }
+.mp-options{ text-align:left; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin:0 0 18px; }
+.mp-options[hidden]{ display:none; }
+.mp-row{ display:flex; align-items:center; gap:10px; margin:0 0 10px; flex-wrap:wrap; }
+.mp-row:last-of-type{ margin-bottom:0; }
+.mp-row-label{ font-size:.78rem; color:var(--ink-soft); font-weight:700; min-width:4.4em; }
+.seg{ display:flex; gap:6px; flex-wrap:wrap; }
+.seg-col{ flex-direction:column; align-items:stretch; }
+.seg-btn{
+  appearance:none; cursor:pointer; font-family:'Zen Maru Gothic',sans-serif; font-weight:700;
+  font-size:.8rem; color:var(--ink); background:var(--surface-2); border:1px solid var(--border);
+  padding:7px 12px; border-radius:8px; text-align:left; line-height:1.4;
+}
+.seg-btn small{ display:block; font-weight:500; font-size:.68rem; color:var(--ink-soft); }
+.seg-btn.active{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+.seg-btn.active small{ color:var(--accent-ink); opacity:.85; }
+.mp-controls-legend{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.mp-legend-chip{
+  font-size:.68rem; font-weight:700; padding:4px 10px; border-radius:999px; color:#fff;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.mp-hint-note{ font-size:.72rem; color:var(--ink-soft); margin:10px 0 0; }
+#mp-count-rule-rows[hidden]{ display:none; }
+
+/* ---------- マルチプレイ: オンライン(別端末)まわり ---------- */
+.online-panel{ margin-top:14px; padding-top:14px; border-top:1px dashed var(--border); }
+.online-panel[hidden]{ display:none; }
+#online-join-box[hidden], #online-create-box[hidden]{ display:none; }
+.room-code{
+  font-family:'Yomogi',sans-serif; font-size:2.2rem; letter-spacing:.2em; text-align:center;
+  background:var(--surface); border:1px dashed var(--border); border-radius:10px;
+  padding:10px 0; margin:14px 0; color:var(--ink);
+}
+.lobby-roster{ display:flex; flex-direction:column; gap:6px; margin:16px 0; text-align:left; }
+.lobby-roster-row{
+  display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; padding:8px 12px; font-size:.85rem;
+}
+.lobby-roster-row .mp-rank-name{ flex:1; }
+.lobby-team-assign[hidden]{ display:none; }
+.lobby-team-row{
+  display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; padding:7px 12px; margin:0 0 6px; font-size:.85rem;
+}
+.lobby-team-row .mp-rank-name{ flex:1; text-align:left; }
+.team-toggle-btn{
+  appearance:none; cursor:pointer; font-family:'Zen Maru Gothic',sans-serif; font-weight:800;
+  font-size:.78rem; padding:6px 14px; border-radius:999px; border:1px solid var(--border);
+  background:var(--surface-2); color:var(--ink);
+}
+.team-toggle-btn:disabled{ cursor:default; opacity:.85; }
+.team-tag{
+  display:inline-block; font-size:.62rem; font-weight:800; padding:1px 7px; border-radius:999px;
+  color:#fff; margin-left:4px; vertical-align:middle;
+}
+
+/* ---------- マルチプレイ: オンライン時のゲーム内HUD ---------- */
+.online-roster{
+  display:flex; flex-direction:column; gap:3px; background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; padding:6px 9px; font-size:.68rem; color:var(--ink);
+}
+.online-roster[hidden]{ display:none; }
+.online-roster-row{ display:flex; align-items:center; gap:6px; }
+.online-roster-row.me{ font-weight:800; }
+#online-spectate-ui[hidden]{ display:none; }
+
+/* ---------- マルチプレイ: ゲーム画面 ---------- */
+#scr-mp-game{ padding:0; }
+#mp-wrap{ position:relative; width:100%; height:100%; background:#000; }
+#mp-quit-btn{
+  position:absolute; top:10px; left:10px; z-index:20; pointer-events:auto;
+  font-family:'Zen Maru Gothic',sans-serif; font-weight:700; font-size:.76rem;
+  color:var(--ink); background:var(--surface); border:1px solid var(--border);
+  padding:6px 12px; border-radius:999px; cursor:pointer;
+}
+.mp-grid{ position:absolute; inset:0; display:grid; gap:3px; background:var(--board-4); }
+.mp-grid-2{ grid-template-columns:1fr 1fr; }
+.mp-grid-3{ grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; }
+.mp-grid-3 .mp-pane:nth-child(3){ grid-column:1/3; }
+.mp-grid-4{ grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; }
+@media (max-width:760px){
+  .mp-grid-2{ grid-template-columns:1fr; grid-template-rows:1fr 1fr; }
+}
+.mp-pane{ position:relative; overflow:hidden; background:#000; border:2px solid var(--pc,var(--accent)); }
+.mp-pane canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+.mp-pane-hud{ position:absolute; top:6px; left:6px; right:6px; display:flex; justify-content:space-between; gap:6px; pointer-events:none; }
+.mp-pane-badge{
+  font-family:'Zen Maru Gothic',sans-serif; font-weight:800; font-size:.7rem; color:#fff;
+  background:var(--pc,var(--accent)); padding:4px 9px; border-radius:7px; box-shadow:0 3px 8px rgba(0,0,0,.4);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.mp-pane-level{
+  font-family:'Zen Maru Gothic',sans-serif; font-weight:700; font-size:.64rem; color:#fff;
+  background:rgba(0,0,0,.45); padding:4px 9px; border-radius:7px; white-space:nowrap;
+}
+.mp-controls-hint{
+  position:absolute; bottom:6px; left:6px; font-size:.62rem; font-family:'Zen Maru Gothic',sans-serif;
+  color:#fff; background:rgba(0,0,0,.4); padding:3px 8px; border-radius:999px; pointer-events:none;
+}
+.mp-spectate-ui{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; background:rgba(0,0,0,.15); pointer-events:none;
+}
+.mp-spectate-ui[hidden]{ display:none; }
+.mp-spectate-label{
+  font-family:'Yomogi',sans-serif; font-size:.95rem; color:#fff; background:rgba(20,14,7,.72);
+  padding:8px 16px; border-radius:999px; pointer-events:none; text-align:center;
+}
+.mp-spectate-btn{
+  pointer-events:auto; appearance:none; cursor:pointer; border:none; font-family:'Zen Maru Gothic',sans-serif;
+  font-weight:800; font-size:.78rem; color:var(--accent-ink); background:var(--accent);
+  padding:9px 18px; border-radius:999px; box-shadow:0 6px 14px rgba(0,0,0,.4);
+}
+#mp-toast{
+  position:absolute; top:38%; left:50%; transform:translate(-50%,-50%); z-index:15;
+  background:var(--tape); border:1px solid var(--tape-edge); color:var(--ink);
+  padding:14px 26px; border-radius:8px; font-family:'Yomogi',sans-serif; font-size:1.15rem;
+  box-shadow:0 10px 24px var(--shadow); text-align:center; pointer-events:none;
+  opacity:0; transition:opacity .5s ease; max-width:88%;
+}
+#mp-toast.show{ opacity:1; }
+
+/* ---------- マルチプレイ: 結果画面 ---------- */
+.mp-rank-list{ display:flex; flex-direction:column; gap:8px; margin:0 0 22px; }
+.mp-rank-row{
+  display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:10px 16px; text-align:left;
+}
+.mp-rank-medal{ font-size:1.3rem; min-width:1.6em; text-align:center; }
+.mp-rank-chip{ width:14px; height:14px; border-radius:50%; flex-shrink:0; }
+.mp-rank-name{ flex:1; font-weight:700; }
+.mp-rank-stat{ font-variant-numeric:tabular-nums; font-size:.85rem; color:var(--ink-soft); }
+</style>
+
+</head>
+<body>
+<div id="app">
+  <button id="btn-mute" class="mute-btn" aria-label="音を消す">🔊</button>
+
+  <section id="scr-start" class="screen">
+    <div class="box-card">
+      <div class="tape-strip"></div>
+      <div class="corner-tape tl"></div>
+      <div class="corner-tape br"></div>
+      <h1>ダンボール<span>迷宮</span></h1>
+      <p class="tagline">おうちで組み立てた、大きなダンボール迷路をたんけんしよう。</p>
+      <div class="challenge-banner" id="challenge-banner" hidden>
+        🎯 <span id="challenge-banner-text">友達からの挑戦状！</span>
+      </div>
+      <div class="howto">
+        <div class="row"><b>すすむ・もどる</b><span class="key">↑</span><span class="key">↓</span>／<span class="key">W</span><span class="key">S</span></div>
+        <div class="row"><b>むきを変える</b><span class="key">←</span><span class="key">→</span>／<span class="key">A</span><span class="key">D</span></div>
+        <div class="row"><b>スマホ・タブレット</b>画面下のボタンで操作できます</div>
+        <div class="row"><b>ちず（ヒント）</b>広告を見ると30秒だけ全体地図が見えます</div>
+      </div>
+      <div class="mode-select" id="mode-select">
+        <div class="mode-toggle" role="group" aria-label="あそびかた">
+          <button type="button" class="mode-btn active" id="mode-solo">🧍 ひとりで</button>
+          <button type="button" class="mode-btn" id="mode-multi">👥 みんなで(2〜4人)</button>
+        </div>
+        <div class="mp-options" id="mp-options" hidden>
+          <div class="mp-row">
+            <span class="mp-row-label">あそぶ場所</span>
+            <div class="seg" id="mp-location-seg">
+              <button type="button" class="seg-btn active" data-loc="local">📺 同じ端末で</button>
+              <button type="button" class="seg-btn" data-loc="online">🌐 べつの端末で</button>
+            </div>
+          </div>
+          <div id="mp-count-rule-rows">
+            <div class="mp-row">
+              <span class="mp-row-label">にんずう</span>
+              <div class="seg" id="mp-count-seg">
+                <button type="button" class="seg-btn active" data-count="2">2人</button>
+                <button type="button" class="seg-btn" data-count="3">3人</button>
+                <button type="button" class="seg-btn" data-count="4">4人</button>
+              </div>
+            </div>
+            <div class="mp-row">
+              <span class="mp-row-label">ルール</span>
+              <div class="seg seg-col" id="mp-rule-seg">
+                <button type="button" class="seg-btn active" data-rule="race">🏁 早いもの勝ち<small>だれかがゴールしたら、みんなで次の部屋へ</small></button>
+                <button type="button" class="seg-btn" data-rule="all">🏆 全員ゴール<small>ゴールした人は他の人を観戦できる</small></button>
+                <button type="button" class="seg-btn" data-rule="team" id="rule-team-btn" hidden>🤝 チーム協力<small>チームの誰か1人がゴールすればチームクリア(べつの端末のみ)</small></button>
+              </div>
+            </div>
+            <div class="mp-row">
+              <span class="mp-row-label">スタート地点</span>
+              <div class="seg" id="mp-spawn-seg">
+                <button type="button" class="seg-btn active" data-spawn="shared">同じ地点から</button>
+                <button type="button" class="seg-btn" data-spawn="separate">バラバラの地点から</button>
+              </div>
+            </div>
+            <div class="mp-row" id="mp-team-spawn-row" hidden>
+              <span class="mp-row-label">チームの地点</span>
+              <div class="seg" id="mp-team-spawn-seg">
+                <button type="button" class="seg-btn active" data-teamspawn="grouped">チームで同じ地点</button>
+                <button type="button" class="seg-btn" data-teamspawn="individual">チームでもバラバラ</button>
+              </div>
+            </div>
+          </div>
+          <div class="mp-controls-legend" id="mp-controls-legend"></div>
+          <p class="mp-hint-note" id="mp-hint-note-local">※ ひとつのキーボードをみんなで使って遊びます(パソコン推奨)</p>
+
+          <div class="online-panel" id="online-panel" hidden>
+            <div class="mode-toggle" role="group" aria-label="オンラインの参加方法">
+              <button type="button" class="mode-btn active" id="online-tab-create">🏠 へやを作る</button>
+              <button type="button" class="mode-btn" id="online-tab-join">🚪 へやに参加する</button>
+            </div>
+            <div id="online-create-box">
+              <button type="button" class="tape-btn tape-btn-alt" id="btn-online-create" style="width:100%;">🏠 へやを作ってみんなを招待</button>
+            </div>
+            <div id="online-join-box" hidden>
+              <input type="text" id="online-room-input" class="share-url-input" placeholder="へやコード(例: ABCD)" maxlength="4" style="text-transform:uppercase; text-align:center; font-size:1.1rem; letter-spacing:.2em;">
+              <button type="button" class="tape-btn tape-btn-alt" id="btn-online-join" style="width:100%;">🚪 このコードで参加する</button>
+            </div>
+            <p class="mp-hint-note" id="online-status-msg"></p>
+          </div>
+        </div>
+      </div>
+      <button id="btn-start" class="tape-btn">たんけんをはじめる</button>
+      <p class="best-time" id="best-time-display"></p>
+    </div>
+  </section>
+
+  <section id="scr-game" class="screen" hidden>
+    <div id="game-wrap">
+      <canvas id="view"></canvas>
+      <div class="vignette"></div>
+      <div id="hud">
+        <div class="hud-left">
+          <div class="hud-badge">LEVEL <span id="hud-level">1</span>/5</div>
+          <div class="hud-badge">⏱ <span id="hud-timer">00:00.0</span></div>
+          <div class="hud-badge compass-badge">でぐち <span class="compass-arrow" id="compass-arrow">▲</span></div>
+          <button class="quit-btn" id="btn-quit">やめる</button>
+          <div class="online-roster" id="online-roster" hidden></div>
+        </div>
+        <div class="hud-right">
+          <button class="hint-btn" id="btn-hint">📦 ちずを見る<small>広告を見てヒント解放</small></button>
+          <canvas id="minimap" width="140" height="140" hidden></canvas>
+          <div class="hint-countdown" id="hint-countdown" hidden></div>
+        </div>
+      </div>
+      <div id="level-toast"></div>
+      <div id="online-spectate-ui" class="mp-spectate-ui" hidden>
+        <div class="mp-spectate-label" id="online-spectate-label"></div>
+        <button type="button" class="mp-spectate-btn" id="online-spectate-btn">👁 きりかえ</button>
+      </div>
+      <div id="touch-controls">
+        <div class="updown">
+          <button class="tbtn fwd" id="t-fwd">▲</button>
+          <button class="tbtn" id="t-back">▼</button>
+        </div>
+        <div class="dpad">
+          <button class="tbtn" id="t-left">◀</button>
+          <button class="tbtn" id="t-right">▶</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="scr-mp-game" class="screen" hidden>
+    <div id="mp-wrap">
+      <button id="mp-quit-btn" type="button">やめる</button>
+      <div id="mp-grid" class="mp-grid"></div>
+      <div id="mp-toast"></div>
+    </div>
+  </section>
+
+  <section id="scr-online-lobby" class="screen" hidden>
+    <div class="box-card">
+      <div class="tape-strip"></div>
+      <h2>ともだちを待っています…</h2>
+      <p class="tagline">このコードを友達に伝えてね</p>
+      <div class="room-code" id="room-code-display">----</div>
+      <button type="button" class="tape-btn tape-btn-alt" id="btn-copy-room-code">📋 コードをコピー</button>
+      <div class="lobby-roster" id="lobby-roster"></div>
+      <div class="lobby-team-assign" id="lobby-team-assign" hidden>
+        <p class="mp-hint-note" style="margin:0 0 8px;">チーム分け(ホストが設定できます。同じチームにすれば協力プレイになります)</p>
+        <div id="lobby-team-rows"></div>
+      </div>
+      <p class="mp-hint-note" id="lobby-status-msg"></p>
+      <div class="btn-col">
+        <button type="button" class="tape-btn" id="btn-online-start" hidden disabled>みんなであそぶ！</button>
+        <button type="button" class="tape-btn tape-btn-alt" id="btn-online-leave">へやを出る</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="ad-overlay" hidden>
+    <div class="ad-card">
+      <div class="ad-label">広告（サンプル）</div>
+      <div class="ad-visual">📦 だんぼーる屋さん<span>これはダミー広告です</span></div>
+      <div class="ad-body">
+        <p id="ad-status">あと <span id="ad-seconds">5</span> 秒でヒントを受け取れます</p>
+        <div class="ad-progress"><div class="ad-progress-bar" id="ad-progress-bar"></div></div>
+        <button class="ad-close" id="ad-close" disabled>視聴中…</button>
+      </div>
+    </div>
+  </div>
+
+  <section id="scr-levelclear" class="screen" hidden>
+    <div class="box-card">
+      <div class="tape-strip"></div>
+      <h2>この部屋クリア！</h2>
+      <p class="tagline" id="lc-label"></p>
+      <div class="stat-row">
+        <div class="stat"><span class="num" id="lc-time">00:00.0</span><span class="lbl">このへやのタイム</span></div>
+        <div class="stat"><span class="num" id="lc-total">00:00.0</span><span class="lbl">ごうけいタイム</span></div>
+      </div>
+      <button id="btn-next" class="tape-btn">つぎのへやへ</button>
+    </div>
+  </section>
+
+  <section id="scr-finish" class="screen" hidden>
+    <div class="box-card">
+      <div class="tape-strip"></div>
+      <div class="corner-tape tl"></div>
+      <div class="corner-tape br"></div>
+      <h2>だっしゅつ せいこう！</h2>
+      <p class="tagline">大きなダンボール迷宮をぜんぶ歩ききったよ。</p>
+      <div class="stat-row">
+        <div class="stat"><span class="num" id="fin-total">00:00.0</span><span class="lbl">ごうけいタイム</span></div>
+        <div class="stat"><span class="num" id="fin-best">-</span><span class="lbl">ベストタイム</span></div>
+      </div>
+      <p class="challenge-result" id="challenge-result" hidden></p>
+      <div class="btn-col">
+        <button id="btn-retry" class="tape-btn">もういちど遊ぶ</button>
+        <button id="btn-share" class="tape-btn tape-btn-alt">🔗 この記録に挑戦状を送る</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="scr-mp-results" class="screen" hidden>
+    <div class="box-card">
+      <div class="tape-strip"></div>
+      <h2>けっか発表！</h2>
+      <div class="mp-rank-list" id="mp-rank-list"></div>
+      <div class="btn-col">
+        <button id="btn-mp-retry" class="tape-btn">もういちど遊ぶ</button>
+        <button id="btn-mp-quit" class="tape-btn tape-btn-alt">スタートにもどる</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="share-overlay" hidden>
+    <div class="ad-card">
+      <div class="ad-label">挑戦状リンク</div>
+      <div class="ad-body">
+        <p>このリンクを友達に送ると、同じ迷路・同じタイムを目標に遊べます。</p>
+        <input type="text" id="share-url" class="share-url-input" readonly>
+        <button class="ad-close ready" id="share-copy">📋 コピーする</button>
+        <button class="ad-close share-close-btn" id="share-close">とじる</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!--
+  別々の端末で遊ぶ「オンライン対戦」機能のために Firebase Realtime Database を使っています。
+  下の <script> 3つは Firebase の公式CDN(compatビルド)です。設定方法は、ゲーム内の
+  「オンライン機能の設定について」の案内、またはお渡ししたセットアップ手順をご覧ください。
+-->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+
+<script>
+(function(){
+"use strict";
+
+/* ========================= 設定 ========================= */
+var LEVELS = [
+  { cols:8,  rows:7,  label:"にゅうこう" },
+  { cols:11, rows:9,  label:"ひみつのつうろ" },
+  { cols:14, rows:12, label:"まがりくねった道" },
+  { cols:17, rows:14, label:"ふくざつな一角" },
+  { cols:20, rows:16, label:"さいごの部屋" }
+];
+var MOVE_SPEED = 2.3;
+var BACK_SPEED = 1.5;
+var ROT_SPEED  = 2.7; // rad/sec
+var PLAYER_R   = 0.22;
+var PLANE_SCALE = 0.66; // ~66deg FOV
+var FLUTE_FREQ = 9;
+var BEST_KEY = "cardboardMaze.bestTotalMs";
+
+/* ================================================================
+   オンライン対戦(別々の端末で遊ぶ)の設定
+   ----------------------------------------------------------------
+   別々の端末でリアルタイムに遊ぶには、無料の Firebase Realtime
+   Database が必要です。以下の手順でご自身のプロジェクトを作成し、
+   値をこの FIREBASE_CONFIG に貼り付けてください(詳しい手順は
+   別途お渡ししたセットアップガイドをご覧ください)。
+     1. https://console.firebase.google.com で新しいプロジェクトを作成
+     2. 「Realtime Database」を作成(ロケーションはどこでもOK)
+     3. 「構築 → Authentication → Sign-in method」で「匿名」を有効化
+     4. プロジェクト設定 → 全般 → 「ウェブアプリを追加」して
+        表示される firebaseConfig の値をここに貼り付ける
+     5. Realtime Database の「ルール」タブに以下を貼り付けて公開:
+          {
+            "rules": {
+              "rooms": {
+                "$room": { ".read": "auth != null", ".write": "auth != null" }
+              }
+            }
+          }
+   設定するまでは「べつの端末で」は使えず、案内メッセージが表示されます。
+   ================================================================ */
+var FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+var reduceMotion = false;
+try{ reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){}
+
+/* ========================= DOM ========================= */
+var scrStart = document.getElementById("scr-start");
+var scrGame = document.getElementById("scr-game");
+var scrClear = document.getElementById("scr-levelclear");
+var scrFinish = document.getElementById("scr-finish");
+var canvas = document.getElementById("view");
+var ctx = canvas.getContext("2d");
+var minimapCanvas = document.getElementById("minimap");
+var mctx = minimapCanvas.getContext("2d");
+var hudLevel = document.getElementById("hud-level");
+var hudTimer = document.getElementById("hud-timer");
+var compassArrow = document.getElementById("compass-arrow");
+var levelToast = document.getElementById("level-toast");
+var bestTimeDisplay = document.getElementById("best-time-display");
+var hintBtn = document.getElementById("btn-hint");
+var hintCountdown = document.getElementById("hint-countdown");
+var adOverlay = document.getElementById("ad-overlay");
+var adSeconds = document.getElementById("ad-seconds");
+var adStatus = document.getElementById("ad-status");
+var adProgressBar = document.getElementById("ad-progress-bar");
+var adCloseBtn = document.getElementById("ad-close");
+var muteBtn = document.getElementById("btn-mute");
+var scrMpGame = document.getElementById("scr-mp-game");
+var scrMpResults = document.getElementById("scr-mp-results");
+var mpGrid = document.getElementById("mp-grid");
+var mpToast = document.getElementById("mp-toast");
+var mpRankList = document.getElementById("mp-rank-list");
+var mpOptions = document.getElementById("mp-options");
+var modeSoloBtn = document.getElementById("mode-solo");
+var modeMultiBtn = document.getElementById("mode-multi");
+var mpCountSeg = document.getElementById("mp-count-seg");
+var mpRuleSeg = document.getElementById("mp-rule-seg");
+var mpSpawnSeg = document.getElementById("mp-spawn-seg");
+var mpTeamSpawnRow = document.getElementById("mp-team-spawn-row");
+var mpTeamSpawnSeg = document.getElementById("mp-team-spawn-seg");
+var mpControlsLegend = document.getElementById("mp-controls-legend");
+var mpHintNoteLocal = document.getElementById("mp-hint-note-local");
+var mpLocationSeg = document.getElementById("mp-location-seg");
+var mpCountRuleRows = document.getElementById("mp-count-rule-rows");
+var onlinePanel = document.getElementById("online-panel");
+var onlineCreateBox = document.getElementById("online-create-box");
+var onlineJoinBox = document.getElementById("online-join-box");
+var onlineStatusMsg = document.getElementById("online-status-msg");
+var onlineTabCreate = document.getElementById("online-tab-create");
+var onlineTabJoin = document.getElementById("online-tab-join");
+var onlineRoomInput = document.getElementById("online-room-input");
+var scrOnlineLobby = document.getElementById("scr-online-lobby");
+var roomCodeDisplay = document.getElementById("room-code-display");
+var lobbyRoster = document.getElementById("lobby-roster");
+var lobbyStatusMsg = document.getElementById("lobby-status-msg");
+var btnOnlineStart = document.getElementById("btn-online-start");
+var onlineRosterEl = document.getElementById("online-roster");
+var onlineSpectateUi = document.getElementById("online-spectate-ui");
+var onlineSpectateLabel = document.getElementById("online-spectate-label");
+var ruleTeamBtn = document.getElementById("rule-team-btn");
+var lobbyTeamAssign = document.getElementById("lobby-team-assign");
+var lobbyTeamRows = document.getElementById("lobby-team-rows");
+
+/* ========================= サウンド(効果音・BGM) ========================= */
+// 外部の音声ファイルは使わず、Web Audio APIですべて合成している。
+var MUTE_KEY = "cardboardMaze.muted";
+var actx = null;
+var masterGain = null, sfxGain = null, musicGain = null;
+var soundReady = false;
+var muted = false;
+try{ muted = localStorage.getItem(MUTE_KEY) === "1"; }catch(e){}
+
+function initAudio(){
+  if(soundReady) return;
+  soundReady = true;
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  try{
+    actx = new AC();
+    masterGain = actx.createGain(); masterGain.gain.value = muted ? 0 : 1; masterGain.connect(actx.destination);
+    sfxGain = actx.createGain(); sfxGain.gain.value = 0.55; sfxGain.connect(masterGain);
+    musicGain = actx.createGain(); musicGain.gain.value = 0.16; musicGain.connect(masterGain);
+    startMusic();
+  }catch(e){ actx = null; }
+}
+function resumeAudio(){
+  if(actx && actx.state === "suspended"){ actx.resume().catch(function(){}); }
+}
+
+function setMuted(v){
+  muted = v;
+  try{ localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); }catch(e){}
+  if(masterGain) masterGain.gain.setTargetAtTime(muted ? 0 : 1, actx.currentTime, 0.05);
+  muteBtn.textContent = muted ? "🔇" : "🔊";
+  muteBtn.setAttribute("aria-label", muted ? "音を出す" : "音を消す");
+}
+
+function playTone(freq, opts){
+  if(!actx) return;
+  opts = opts || {};
+  var t0 = actx.currentTime;
+  var dur = opts.dur || 0.15;
+  var osc = actx.createOscillator();
+  osc.type = opts.type || "triangle";
+  osc.frequency.setValueAtTime(freq, t0);
+  if(opts.freqTo) osc.frequency.exponentialRampToValueAtTime(Math.max(1,opts.freqTo), t0+dur);
+  var g = actx.createGain();
+  var peak = opts.gain!==undefined ? opts.gain : 0.3;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(peak, t0+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  osc.connect(g); g.connect(sfxGain);
+  osc.start(t0); osc.stop(t0+dur+0.02);
+}
+
+function playNoise(opts){
+  if(!actx) return;
+  opts = opts || {};
+  var t0 = actx.currentTime;
+  var dur = opts.dur || 0.1;
+  var bufferSize = Math.max(1, Math.floor(actx.sampleRate*dur));
+  var buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for(var i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1) * Math.pow(1-i/bufferSize, 2); }
+  var src = actx.createBufferSource(); src.buffer = buffer;
+  var filter = actx.createBiquadFilter();
+  filter.type = opts.filterType || "lowpass";
+  filter.frequency.value = opts.filterFreq || 1200;
+  var g = actx.createGain(); g.gain.value = opts.gain!==undefined ? opts.gain : 0.25;
+  src.connect(filter); filter.connect(g); g.connect(sfxGain);
+  src.start(t0);
+}
+
+function sfxClick(){ playTone(520, {type:"square", dur:0.06, gain:0.16, freqTo:700}); }
+function sfxStep(){
+  playNoise({dur:0.05, filterFreq:500, filterType:"lowpass", gain:0.10});
+  playTone(95, {type:"sine", dur:0.07, gain:0.14});
+}
+function sfxBump(){
+  playNoise({dur:0.09, filterFreq:280, filterType:"lowpass", gain:0.28});
+  playTone(65, {type:"square", dur:0.09, gain:0.18});
+}
+function sfxHint(){
+  playTone(880, {type:"triangle", dur:0.1, gain:0.22});
+  setTimeout(function(){ playTone(1318.5, {type:"triangle", dur:0.16, gain:0.22}); }, 90);
+}
+function sfxJingle(notes, gap, gain){
+  notes.forEach(function(freq, i){
+    setTimeout(function(){ playTone(freq, {type:"triangle", dur:gap*1.4/1000, gain:gain||0.24}); }, i*gap);
+  });
+}
+function sfxLevelClear(){ sfxJingle([523.25, 659.25, 783.99], 100); } // ド・ミ・ソ
+function sfxFinish(){ sfxJingle([523.25, 659.25, 783.99, 1046.5, 1318.5], 130, 0.26); }
+
+// 控えめなBGMループ(ペンタトニックの簡易シーケンサー)
+var MUSIC_NOTES = [261.63, 293.66, 329.63, 392.00, 440.00]; // C D E G A
+var MUSIC_PATTERN = [0,2,4,2, 3,2,0,null, 2,4,3,4, 0,2,0,null];
+var musicStep = 0, musicTimer = null;
+function startMusic(){
+  if(musicTimer || !actx) return;
+  var stepDur = 0.46;
+  musicStep = 0;
+  musicTimer = setInterval(function(){
+    var idx = MUSIC_PATTERN[musicStep % MUSIC_PATTERN.length];
+    if(idx!==null && idx!==undefined) playMusicNote(MUSIC_NOTES[idx]*0.5, stepDur*0.95);
+    musicStep++;
+  }, stepDur*1000);
+}
+function playMusicNote(freq, dur){
+  if(!actx) return;
+  var t0 = actx.currentTime;
+  var osc = actx.createOscillator(); osc.type = "triangle"; osc.frequency.value = freq;
+  var osc2 = actx.createOscillator(); osc2.type = "sine"; osc2.frequency.value = freq*2.006;
+  var g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.5, t0+0.06);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  var g2 = actx.createGain(); g2.gain.value = 0.15;
+  osc.connect(g); osc2.connect(g2); g2.connect(g);
+  g.connect(musicGain);
+  osc.start(t0); osc.stop(t0+dur+0.05);
+  osc2.start(t0); osc2.stop(t0+dur+0.05);
+}
+
+function onFirstGesture(){
+  initAudio();
+  resumeAudio();
+}
+document.addEventListener("pointerdown", onFirstGesture, {once:true});
+document.addEventListener("keydown", onFirstGesture, {once:true});
+muteBtn.addEventListener("click", function(){
+  initAudio(); resumeAudio();
+  setMuted(!muted);
+});
+setMuted(muted); // 初期アイコン表示(まだAudioContextは作らない)
+
+function show(el){ el.hidden = false; }
+function hide(el){ el.hidden = true; }
+function showScreen(name){
+  hide(scrStart); hide(scrGame); hide(scrClear); hide(scrFinish); hide(scrMpGame); hide(scrMpResults); hide(scrOnlineLobby);
+  if(name==="start") show(scrStart);
+  else if(name==="game") show(scrGame);
+  else if(name==="clear") show(scrClear);
+  else if(name==="finish") show(scrFinish);
+  else if(name==="mp-game") show(scrMpGame);
+  else if(name==="mp-results") show(scrMpResults);
+  else if(name==="online-lobby") show(scrOnlineLobby);
+  // 分割画面ではペイン境界と重なるため、プレイ中だけミュートボタンを隠す
+  muteBtn.style.display = (name==="mp-game") ? "none" : "flex";
+}
+
+/* ========================= 色ユーティリティ ========================= */
+function cssVar(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function hexToRgb(hex){
+  hex = hex.replace("#","");
+  if(hex.length===3){ hex = hex.split("").map(function(c){return c+c;}).join(""); }
+  var n = parseInt(hex,16);
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+function shade(c,f){
+  return { r:Math.max(0,Math.min(255,c.r*f)), g:Math.max(0,Math.min(255,c.g*f)), b:Math.max(0,Math.min(255,c.b*f)) };
+}
+function mixRgb(a,b,t){
+  return { r:a.r+(b.r-a.r)*t, g:a.g+(b.g-a.g)*t, b:a.b+(b.b-a.b)*t };
+}
+function rgbStr(c){ return "rgb("+(c.r|0)+","+(c.g|0)+","+(c.b|0)+")"; }
+
+var PAL = {};
+function loadPalette(){
+  PAL.wallNS = hexToRgb(cssVar("--wall-ns"));
+  PAL.wallEW = hexToRgb(cssVar("--wall-ew"));
+  PAL.ceilingA = hexToRgb(cssVar("--ceiling-a"));
+  PAL.ceilingB = hexToRgb(cssVar("--ceiling-b"));
+  PAL.floorA = hexToRgb(cssVar("--floor-a"));
+  PAL.floorB = hexToRgb(cssVar("--floor-b"));
+  PAL.fog = hexToRgb(cssVar("--fog"));
+  PAL.goal = hexToRgb(cssVar("--goal"));
+  PAL.goalGlow = hexToRgb(cssVar("--goal-glow"));
+}
+
+/* ========================= 迷路生成 ========================= */
+function hash(n){
+  n = (n<<13) ^ n;
+  return ((n*(n*n*15731+789221)+1376312589) & 0x7fffffff);
+}
+
+// 決定的な擬似乱数生成器(mulberry32)。同じシードなら常に同じ迷路になる。
+// これにより「友達と同じ迷路で挑戦する」共有リンク機能が実現できる。
+var SPAWN_SEED_OFFSET = 0x2545F491; // スタート地点抽選の乱数列を迷路生成の乱数列とずらすためのオフセット
+
+function mulberry32(seed){
+  var s = seed >>> 0;
+  return function(){
+    s = (s + 0x6D2B79F5) | 0;
+    var t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function generateMaze(cols, rows, rng){
+  rng = rng || Math.random;
+  function idx(x,y){ return y*cols+x; }
+  var visited = new Uint8Array(cols*rows);
+  var walls = [];
+  for(var i=0;i<cols*rows;i++){ walls.push({N:true,S:true,E:true,W:true}); }
+  var stack = [[0,0]];
+  visited[idx(0,0)] = 1;
+  var dirs = [[0,-1,"N","S"],[0,1,"S","N"],[1,0,"E","W"],[-1,0,"W","E"]];
+  while(stack.length){
+    var cur = stack[stack.length-1];
+    var x=cur[0], y=cur[1];
+    var opts = [];
+    for(var d=0; d<dirs.length; d++){
+      var dx=dirs[d][0], dy=dirs[d][1];
+      var nx=x+dx, ny=y+dy;
+      if(nx>=0 && nx<cols && ny>=0 && ny<rows && !visited[idx(nx,ny)]){
+        opts.push([nx,ny,dirs[d][2],dirs[d][3]]);
+      }
+    }
+    if(opts.length===0){ stack.pop(); continue; }
+    var pick = opts[(rng()*opts.length)|0];
+    var nx=pick[0], ny=pick[1], a=pick[2], b=pick[3];
+    walls[idx(x,y)][a] = false;
+    walls[idx(nx,ny)][b] = false;
+    visited[idx(nx,ny)] = 1;
+    stack.push([nx,ny]);
+  }
+
+  // ダンボール迷路の壁は、段ボールを立てているだけの薄いもの。
+  // なので壁を残したまま一本道(スパニングツリー)にせず、あちこちに追加の開口部を
+  // 作って分かれ道やループを増やす(いわゆる「ブレイド迷路」化)。
+  // 道幅(通路1マスぶんの広さ)はそのまま変えず、壁の量だけを間引く。
+  var BRAID_CHANCE = 0.16;
+  for(var by=0; by<rows; by++){
+    for(var bx=0; bx<cols; bx++){
+      if(bx+1<cols && rng()<BRAID_CHANCE){
+        walls[idx(bx,by)].E = false;
+        walls[idx(bx+1,by)].W = false;
+      }
+      if(by+1<rows && rng()<BRAID_CHANCE){
+        walls[idx(bx,by)].S = false;
+        walls[idx(bx,by+1)].N = false;
+      }
+    }
+  }
+  // 行き止まり(通れる方向が1つしかないマス)は、なるべく追加の開口部を作って
+  // 分かれ道に変える。
+  for(var dy=0; dy<rows; dy++){
+    for(var dx2=0; dx2<cols; dx2++){
+      var dw = walls[idx(dx2,dy)];
+      var openCount = (dw.N?0:1)+(dw.S?0:1)+(dw.E?0:1)+(dw.W?0:1);
+      if(openCount>1) continue;
+      var deadOpts = [];
+      if(dx2+1<cols && dw.E) deadOpts.push(["E","W",dx2+1,dy]);
+      if(dx2-1>=0 && dw.W) deadOpts.push(["W","E",dx2-1,dy]);
+      if(dy+1<rows && dw.S) deadOpts.push(["S","N",dx2,dy+1]);
+      if(dy-1>=0 && dw.N) deadOpts.push(["N","S",dx2,dy-1]);
+      if(deadOpts.length===0) continue;
+      var deadPick = deadOpts[(rng()*deadOpts.length)|0];
+      dw[deadPick[0]] = false;
+      walls[idx(deadPick[2],deadPick[3])][deadPick[1]] = false;
+    }
+  }
+
+  var gw = cols*2+1, gh = rows*2+1;
+  var grid = new Uint8Array(gw*gh); grid.fill(1);
+  function gset(gx,gy,v){ grid[gy*gw+gx] = v; }
+  for(var y=0;y<rows;y++){
+    for(var x=0;x<cols;x++){
+      gset(x*2+1, y*2+1, 0);
+      var w = walls[idx(x,y)];
+      if(!w.N) gset(x*2+1, y*2, 0);
+      if(!w.S) gset(x*2+1, y*2+2, 0);
+      if(!w.E) gset(x*2+2, y*2+1, 0);
+      if(!w.W) gset(x*2, y*2+1, 0);
+    }
+  }
+
+  // BFS: find the path-cell farthest from the start -> goal
+  var dist = new Int32Array(gw*gh); dist.fill(-1);
+  dist[1*gw+1] = 0;
+  var q = [[1,1]]; var qi=0; var far=[1,1]; var farD=0;
+  while(qi<q.length){
+    var p = q[qi++];
+    var px=p[0], py=p[1];
+    var d = dist[py*gw+px];
+    if(px%2===1 && py%2===1 && d>farD){ farD=d; far=[px,py]; }
+    var nbrs = [[px+1,py],[px-1,py],[px,py+1],[px,py-1]];
+    for(var k=0;k<4;k++){
+      var nx2=nbrs[k][0], ny2=nbrs[k][1];
+      if(nx2<0||ny2<0||nx2>=gw||ny2>=gh) continue;
+      if(grid[ny2*gw+nx2]===1) continue;
+      if(dist[ny2*gw+nx2]!==-1) continue;
+      dist[ny2*gw+nx2] = d+1;
+      q.push([nx2,ny2]);
+    }
+  }
+
+  // 分かれ道を増やす一方で、ゴールまでの「正解の道のり(最短経路)」は
+  // 常にただ1つになるようにする。ゴールから各マスまでの距離を求め、
+  // 同じ最短距離であと1歩ゴールに近づける抜け道が2つ以上あるマスは、
+  // そのうち1本だけを残して残りは壁に戻す。
+  // (距離を縮めない寄り道・行き止まりの分かれ道はそのまま残るので、探索の楽しさは保たれる)
+  var distFromGoal = bfsDistFromGoal({ grid:grid, gw:gw, gh:gh, goalX:far[0], goalY:far[1] });
+  var trimDirs = [[2,0],[-2,0],[0,2],[0,-2]];
+  for(var ty=1; ty<gh; ty+=2){
+    for(var tx=1; tx<gw; tx+=2){
+      if(tx===far[0] && ty===far[1]) continue;
+      var myD = distFromGoal[ty*gw+tx];
+      if(myD<0) continue;
+      var shorterEdges = [];
+      for(var di=0; di<4; di++){
+        var wx = tx+trimDirs[di][0]/2, wy = ty+trimDirs[di][1]/2;
+        var nx3 = tx+trimDirs[di][0], ny3 = ty+trimDirs[di][1];
+        if(nx3<0||ny3<0||nx3>=gw||ny3>=gh) continue;
+        if(grid[wy*gw+wx]!==0) continue;
+        var nd = distFromGoal[ny3*gw+nx3];
+        if(nd<0 || nd>=myD) continue;
+        shorterEdges.push({wx:wx, wy:wy, d:nd});
+      }
+      if(shorterEdges.length<=1) continue;
+      var bestD = Math.min.apply(null, shorterEdges.map(function(e){ return e.d; }));
+      var bestEdges = shorterEdges.filter(function(e){ return e.d===bestD; });
+      var keep = bestEdges[(rng()*bestEdges.length)|0];
+      for(var si=0; si<shorterEdges.length; si++){
+        var e = shorterEdges[si];
+        if(e===keep) continue;
+        grid[e.wy*gw+e.wx] = 1;
+      }
+    }
+  }
+
+  // 開始セルから最初に開いている方向を向く
+  var startAngle = 0;
+  var tryDirs = [[1,0,0],[0,1,Math.PI/2],[-1,0,Math.PI],[0,-1,-Math.PI/2]];
+  for(var t=0;t<tryDirs.length;t++){
+    var gx = 1+tryDirs[t][0], gy = 1+tryDirs[t][1];
+    if(gx>=0 && gy>=0 && gx<gw && gy<gh && grid[gy*gw+gx]===0){ startAngle = tryDirs[t][2]; break; }
+  }
+
+  return { grid:grid, gw:gw, gh:gh, goalX:far[0], goalY:far[1], startAngle:startAngle };
+}
+
+// 指定したマスから見て、最初に開いている方向を向く角度を返す(generateMaze内の開始マス用ロジックを任意マスに一般化したもの)。
+function openFacingAngle(mazeObj, gx, gy){
+  var tryDirs = [[1,0,0],[0,1,Math.PI/2],[-1,0,Math.PI],[0,-1,-Math.PI/2]];
+  for(var t=0;t<tryDirs.length;t++){
+    var nx = gx+tryDirs[t][0], ny = gy+tryDirs[t][1];
+    if(nx>=0 && ny>=0 && nx<mazeObj.gw && ny<mazeObj.gh && mazeObj.grid[ny*mazeObj.gw+nx]===0) return tryDirs[t][2];
+  }
+  return 0;
+}
+
+// ゴールからの通路上の距離(マス数)を、迷路内の全ての通路マスについてBFSで求める。
+// 「バラバラのスタート地点」でも全員のゴールまでの道のりを揃えるために使う。
+function bfsDistFromGoal(mazeObj){
+  var gw=mazeObj.gw, gh=mazeObj.gh;
+  var dist = new Int32Array(gw*gh).fill(-1);
+  var gx0=mazeObj.goalX, gy0=mazeObj.goalY;
+  dist[gy0*gw+gx0] = 0;
+  var q = [[gx0,gy0]], qi = 0;
+  while(qi<q.length){
+    var c=q[qi++]; var cx=c[0], cy=c[1]; var d=dist[cy*gw+cx];
+    var nbrs=[[cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]];
+    for(var k=0;k<4;k++){
+      var nx=nbrs[k][0], ny=nbrs[k][1];
+      if(nx<0||ny<0||nx>=gw||ny>=gh) continue;
+      if(mazeObj.grid[ny*gw+nx]===1) continue;
+      if(dist[ny*gw+nx]!==-1) continue;
+      dist[ny*gw+nx] = d+1;
+      q.push([nx,ny]);
+    }
+  }
+  return dist;
+}
+
+// 「バラバラのスタート地点」用に、通路のマスから最大count個を選ぶ。
+// ゴールまでの道のりが全員ぴったり同じになるよう、ゴールからの距離ごとにマスをグループ分けし、
+// 「合計count個以上のマスを含む、距離の範囲(幅)が最小になる」グループの組み合わせを探す
+// (スライディングウィンドウ法。同じ距離のマスだけでcount個そろえば幅0=完全に同じ距離になる)。
+// 幅が同じ候補が複数ある場合は、よりゴールから遠い方を優先する。
+// その範囲内のマスから、なるべく互いに散らばった地点を貪欲に選ぶ。
+// rngが同じシードなら毎回同じ組み合わせになる(オンライン対戦の各端末が個別に同じ結果を計算できる)。
+function pickSpawnPoints(mazeObj, count, rng){
+  var gw=mazeObj.gw, gh=mazeObj.gh;
+  var distFromGoal = bfsDistFromGoal(mazeObj);
+  var byDist = {};
+  for(var gy=1; gy<gh; gy+=2){
+    for(var gx=1; gx<gw; gx+=2){
+      if(mazeObj.grid[gy*gw+gx]!==0) continue;
+      if(gx===mazeObj.goalX && gy===mazeObj.goalY) continue; // ゴール自体は除く
+      var d = distFromGoal[gy*gw+gx];
+      if(d<0) continue;
+      if(!byDist[d]) byDist[d] = [];
+      byDist[d].push([gx,gy]);
+    }
+  }
+  var keys = Object.keys(byDist).map(Number).sort(function(a,b){ return a-b; });
+  if(keys.length===0) return [[1,1]];
+
+  // 最小幅ウィンドウ探索: keys(距離の一覧, 昇順)上でしゃくとり法により、
+  // 合計count個以上のマスを含む区間のうち幅(最大距離-最小距離)が最小のものを求める。
+  var bestLo=-1, bestHi=-1, bestWidth=Infinity;
+  var lo=0, sum=0;
+  for(var hi=0; hi<keys.length; hi++){
+    sum += byDist[keys[hi]].length;
+    while(sum - byDist[keys[lo]].length >= count){
+      sum -= byDist[keys[lo]].length;
+      lo++;
+    }
+    if(sum>=count){
+      var width = keys[hi]-keys[lo];
+      if(width<bestWidth || (width===bestWidth && (bestHi<0 || keys[hi]>keys[bestHi]))){
+        bestWidth = width; bestLo=lo; bestHi=hi;
+      }
+    }
+  }
+
+  var pool;
+  if(bestHi>=0){
+    pool = [];
+    for(var ki=bestLo; ki<=bestHi; ki++) pool = pool.concat(byDist[keys[ki]]);
+  } else {
+    // 迷路全体を合わせてもcount個に満たないほど小さい場合は、ある分すべてを使う。
+    pool = [];
+    for(var ki2=0; ki2<keys.length; ki2++) pool = pool.concat(byDist[keys[ki2]]);
+  }
+  if(pool.length===0) return [[1,1]];
+
+  var cells = pool.slice();
+  for(var i=cells.length-1;i>0;i--){
+    var j=(rng()*(i+1))|0;
+    var tmp=cells[i]; cells[i]=cells[j]; cells[j]=tmp;
+  }
+  var chosen = [cells[0]];
+  var remaining = cells.slice(1);
+  var wantExtra = Math.max(0, count-1);
+  while(chosen.length-1 < wantExtra && remaining.length>0){
+    var best=null, bestIdx=-1, bestD=-1;
+    for(var c=0;c<remaining.length;c++){
+      var cell = remaining[c];
+      var minD = Infinity;
+      for(var k2=0;k2<chosen.length;k2++){
+        var dx=cell[0]-chosen[k2][0], dy=cell[1]-chosen[k2][1];
+        var dd2 = dx*dx+dy*dy;
+        if(dd2<minD) minD = dd2;
+      }
+      if(minD>bestD){ bestD=minD; best=cell; bestIdx=c; }
+    }
+    chosen.push(best);
+    remaining.splice(bestIdx,1);
+  }
+  return chosen;
+}
+
+/* ========================= ゲーム状態 ========================= */
+var state = "start"; // start | playing | clear | finish
+var maze = null;
+var player = { x:1.5, y:1.5, angle:0 };
+var currentLevelIndex = 0;
+var fogDist = 12;
+var minimapMode = "full";
+var revealed = null;
+var levelStartTime = 0;
+var totalTime = 0;
+var zbuffer = new Float32Array(1);
+var walkCycle = 0;
+var lastStepCycle = 0;
+var lastBumpTime = 0;
+var HINT_DURATION_MS = 30000; // 広告視聴後、地図(ヒント)が見える時間
+var hintRevealedUntil = 0;    // performance.now() のこの時刻まで地図を表示
+var adWatching = false;
+var keys = {};
+var touchState = { fwd:false, back:false, left:false, right:false };
+
+/* ========================= 挑戦状(共有リンク)まわり ========================= */
+var runSeed = 0;              // 今の周回(全5レベル)を決めるシード値
+var isChallenge = false;      // 共有リンク(?maze=...)から始まったか
+var challengeTargetMs = null; // 挑戦リンクに含まれる「目標タイム」(ms)
+
+function randomSeed(){ return (Math.random()*4294967296) >>> 0; }
+function seedToCode(seed){ return (seed>>>0).toString(36); }
+function codeToSeed(code){ var n = parseInt(code,36); return (n>=0 && !isNaN(n)) ? (n>>>0) : null; }
+function levelSeed(base,i){ return hash((base + i*104729) | 0) >>> 0; }
+
+function parseChallengeFromURL(){
+  try{
+    var params = new URLSearchParams(location.search);
+    var m = params.get("maze");
+    var seed = m ? codeToSeed(m) : null;
+    if(seed!==null){
+      runSeed = seed;
+      isChallenge = true;
+      var t = params.get("t");
+      if(t!==null){
+        var ms = parseFloat(t);
+        if(!isNaN(ms) && ms>0) challengeTargetMs = ms;
+      }
+      return;
+    }
+  }catch(e){}
+  runSeed = randomSeed();
+}
+
+function updateChallengeBanner(){
+  var banner = document.getElementById("challenge-banner");
+  var text = document.getElementById("challenge-banner-text");
+  if(isChallenge){
+    text.textContent = challengeTargetMs!==null
+      ? "友達からの挑戦状！ 目標タイム " + msToClock(challengeTargetMs)
+      : "友達と同じ迷路で遊べます！";
+    banner.hidden = false;
+  }else{
+    banner.hidden = true;
+  }
+}
+
+function buildChallengeURL(seed, ms){
+  var url = location.origin + location.pathname;
+  var qs = "maze=" + seedToCode(seed);
+  if(ms!==undefined && ms!==null) qs += "&t=" + Math.round(ms);
+  return url + "?" + qs;
+}
+
+function isWallIn(mazeObj, gx, gy){
+  if(!mazeObj) return true;
+  if(gx<0||gy<0||gx>=mazeObj.gw||gy>=mazeObj.gh) return true;
+  return mazeObj.grid[gy*mazeObj.gw+gx]===1;
+}
+function collidesAtIn(mazeObj, x, y, r){
+  return isWallIn(mazeObj, Math.floor(x-r),Math.floor(y-r)) || isWallIn(mazeObj, Math.floor(x+r),Math.floor(y-r)) ||
+         isWallIn(mazeObj, Math.floor(x-r),Math.floor(y+r)) || isWallIn(mazeObj, Math.floor(x+r),Math.floor(y+r));
+}
+function isWall(gx,gy){ return isWallIn(maze, gx, gy); }
+function collidesAt(x,y,r){ return collidesAtIn(maze, x, y, r); }
+
+/* ========================= マルチプレイ: データモデル ========================= */
+// 同じ端末・同じキーボードで最大4人まで同時プレイできる。
+// 操作はキー配置で分担する(矢印キー / WASD / IJKL / テンキー)。
+var MP_CONTROLS = [
+  { up:"ArrowUp", down:"ArrowDown", left:"ArrowLeft", right:"ArrowRight", label:"P1", keyText:"↑↓←→", color:"#e2551f" },
+  { up:"KeyW", down:"KeyS", left:"KeyA", right:"KeyD", label:"P2", keyText:"W A S D", color:"#3877c6" },
+  { up:"KeyI", down:"KeyK", left:"KeyJ", right:"KeyL", label:"P3", keyText:"I J K L", color:"#3f8f5f" },
+  { up:"Numpad8", down:"Numpad2", left:"Numpad4", right:"Numpad6", label:"P4", keyText:"テンキー 8/2/4/6", color:"#9b59b6" }
+];
+var gameMode = "solo";     // "solo" | "multi"
+var mpCount = 2;
+var mpRaceMode = "race";   // "race"(早いもの勝ち) | "all"(全員ゴール) | "team"(チーム協力)
+var mpSpawnMode = "shared";     // "shared"(全員同じ地点) | "separate"(バラバラの地点) — ローカル・オンライン共通
+var mpTeamSpawnMode = "grouped"; // "grouped"(同じチームは同じ地点) | "individual"(チームでもバラバラ) — チーム協力+separate時のみ有効
+var mpPlayers = [];
+var mpRunSeed = 0;
+var mpMazeCache = {};
+var mpLevelIndex = 0;      // race モードで全員が今いる共通レベル
+var mpActive = false;
+var mpTransitioning = false;
+
+function computeFogFor(level, idx){
+  var diag = Math.max(level.cols, level.rows);
+  return Math.max(7, diag*1.25 - idx*0.4);
+}
+function getMPMaze(i){
+  if(!mpMazeCache[i]){
+    var m = generateMaze(LEVELS[i].cols, LEVELS[i].rows, mulberry32(levelSeed(mpRunSeed, i)));
+    m.spawns = pickSpawnPoints(m, 4, mulberry32((levelSeed(mpRunSeed, i) ^ SPAWN_SEED_OFFSET) >>> 0));
+    mpMazeCache[i] = m;
+  }
+  return mpMazeCache[i];
+}
+
+function computeFog(level){
+  var diag = Math.max(level.cols, level.rows);
+  return Math.max(7, diag*1.25 - currentLevelIndex*0.4);
+}
+
+function startLevel(i){
+  currentLevelIndex = i;
+  var L = LEVELS[i];
+  maze = generateMaze(L.cols, L.rows, mulberry32(levelSeed(runSeed, i)));
+  player.x = 1.5; player.y = 1.5; player.angle = maze.startAngle;
+  fogDist = computeFog(L);
+  minimapMode = i<2 ? "full" : "fog";
+  revealed = new Set();
+  levelStartTime = performance.now();
+  hudLevel.textContent = String(i+1);
+  hintRevealedUntil = 0;
+  updateHintUI();
+  onlineRosterEl.hidden = true;
+  hide(onlineSpectateUi);
+  showScreen("game");
+  state = "playing";
+  requestAnimationFrame(resizeCanvas);
+  flashLevelToast((i+1)+"／5　"+L.label);
+}
+
+/* ========================= 広告(ヒント解放) ========================= */
+// ------------------------------------------------------------------
+// requestRewardedAd() は「リワード広告を1本見せる」ための差し替えポイントです。
+// 今はダミー広告(5秒のモック画面)を表示するだけですが、実際に公開する際は
+// この中身を利用する広告ネットワークのリワード広告呼び出しに置き換えてください。
+//   例) Google AdSense (H5ゲーム向け adBreak):
+//     function requestRewardedAd(onReward){
+//       adBreak({ type:'reward', name:'hint_map',
+//         beforeReward:function(showAdFn){ showAdFn(); },
+//         adViewed:function(){ onReward(); },
+//         adDismissed:function(){ /* 視聴せず閉じた場合は何もしない */ } });
+//     }
+//   例) Poki SDK:
+//     function requestRewardedAd(onReward){
+//       PokiSDK.rewardedBreak().then(function(success){ if(success) onReward(); });
+//     }
+// onReward() を呼ぶと地図ヒントが HINT_DURATION_MS だけ解放されます。
+// ------------------------------------------------------------------
+function requestRewardedAd(onReward){
+  showMockAdOverlay(onReward);
+}
+
+function showMockAdOverlay(onReward){
+  if(adWatching) return;
+  adWatching = true;
+  show(adOverlay);
+  adCloseBtn.disabled = true;
+  adCloseBtn.textContent = "視聴中…";
+  adCloseBtn.classList.remove("ready");
+  adProgressBar.style.transition = "none";
+  adProgressBar.style.width = "0%";
+  requestAnimationFrame(function(){
+    adProgressBar.style.transition = "width 1s linear";
+  });
+  var total = 5;
+  var remain = total;
+  adSeconds.textContent = String(remain);
+  adStatus.textContent = "あと " + remain + " 秒でヒントを受け取れます";
+  adProgressBar.style.width = (100/total) + "%";
+  var timer = setInterval(function(){
+    remain -= 1;
+    if(remain > 0){
+      adSeconds.textContent = String(remain);
+      adStatus.textContent = "あと " + remain + " 秒でヒントを受け取れます";
+      adProgressBar.style.width = (100*(total-remain)/total) + "%";
+    }else{
+      clearInterval(timer);
+      adProgressBar.style.width = "100%";
+      adStatus.textContent = "ヒントの準備ができました！";
+      adCloseBtn.disabled = false;
+      adCloseBtn.textContent = "ちずを受け取る";
+      adCloseBtn.classList.add("ready");
+    }
+  }, 1000);
+
+  function finish(){
+    if(!adWatching) return;
+    adWatching = false;
+    hide(adOverlay);
+    adCloseBtn.removeEventListener("click", finish);
+    onReward();
+  }
+  adCloseBtn.addEventListener("click", finish);
+}
+
+function updateHintUI(){
+  var revealedNow = performance.now() < hintRevealedUntil;
+  if(revealedNow){
+    hide(hintBtn);
+    minimapCanvas.hidden = false;
+    hintCountdown.hidden = false;
+    var remainSec = Math.max(0, Math.ceil((hintRevealedUntil-performance.now())/1000));
+    hintCountdown.textContent = "👀 のこり " + remainSec + " 秒";
+  }else{
+    show(hintBtn);
+    minimapCanvas.hidden = true;
+    hintCountdown.hidden = true;
+  }
+  return revealedNow;
+}
+
+hintBtn.addEventListener("click", function(){
+  sfxClick();
+  requestRewardedAd(function(){
+    sfxHint();
+    hintRevealedUntil = performance.now() + HINT_DURATION_MS;
+    updateHintUI();
+  });
+});
+
+function flashLevelToast(text){
+  levelToast.innerHTML = text + "<small>むきを変えて進もう</small>";
+  levelToast.classList.add("show");
+  setTimeout(function(){ levelToast.classList.remove("show"); }, 1800);
+}
+
+function reachGoal(){
+  var t = performance.now() - levelStartTime;
+  totalTime += t;
+  if(currentLevelIndex >= LEVELS.length-1){
+    finishGame();
+  }else{
+    sfxLevelClear();
+    document.getElementById("lc-label").textContent = LEVELS[currentLevelIndex].label + " をぬけた！";
+    document.getElementById("lc-time").textContent = msToClock(t);
+    document.getElementById("lc-total").textContent = msToClock(totalTime);
+    state = "clear";
+    showScreen("clear");
+  }
+}
+
+function finishGame(){
+  sfxFinish();
+  var best = null;
+  try{ var v = localStorage.getItem(BEST_KEY); if(v) best = parseFloat(v); }catch(e){}
+  var isNew = false;
+  if(best===null || totalTime < best){
+    isNew = true;
+    try{ localStorage.setItem(BEST_KEY, String(totalTime)); }catch(e){}
+    best = totalTime;
+  }
+  document.getElementById("fin-total").textContent = msToClock(totalTime);
+  var finBest = document.getElementById("fin-best");
+  finBest.textContent = msToClock(best) + (isNew ? "（しんきろく！）" : "");
+  finBest.className = isNew ? "num new-best" : "num";
+
+  var resultEl = document.getElementById("challenge-result");
+  if(isChallenge && challengeTargetMs!==null){
+    var diff = Math.abs(totalTime - challengeTargetMs);
+    if(totalTime < challengeTargetMs){
+      resultEl.textContent = "🎉 挑戦成功！ 目標より " + msToClock(diff) + " 速かった！";
+      resultEl.className = "challenge-result win";
+    }else{
+      resultEl.textContent = "おしい！ 目標まであと " + msToClock(diff) + "。もう一度挑戦してみよう";
+      resultEl.className = "challenge-result";
+    }
+    resultEl.hidden = false;
+  }else{
+    resultEl.hidden = true;
+  }
+
+  state = "finish";
+  showScreen("finish");
+}
+
+function msToClock(ms){
+  var s = ms/1000;
+  var m = Math.floor(s/60);
+  var sec = (s - m*60);
+  var secStr = sec.toFixed(1);
+  if(secStr.length<4) secStr = "0"+secStr;
+  return (m<10?"0"+m:m) + ":" + secStr;
+}
+
+function updateBestDisplay(){
+  try{
+    var v = localStorage.getItem(BEST_KEY);
+    if(v){ bestTimeDisplay.textContent = "これまでのベストタイム： " + msToClock(parseFloat(v)); }
+    else{ bestTimeDisplay.textContent = ""; }
+  }catch(e){ bestTimeDisplay.textContent = ""; }
+}
+
+/* ========================= 入力 ========================= */
+var MOVE_KEYS = { ArrowUp:1, ArrowDown:1, ArrowLeft:1, ArrowRight:1, KeyW:1, KeyA:1, KeyS:1, KeyD:1 };
+window.addEventListener("keydown", function(e){
+  if(MOVE_KEYS[e.code]){ e.preventDefault(); }
+  keys[e.code] = true;
+});
+window.addEventListener("keyup", function(e){ keys[e.code] = false; });
+
+function bindTouch(id, key){
+  var el = document.getElementById(id);
+  if(!el) return;
+  function on(e){ e.preventDefault(); touchState[key] = true; }
+  function off(e){ e.preventDefault(); touchState[key] = false; }
+  el.addEventListener("pointerdown", on);
+  el.addEventListener("pointerup", off);
+  el.addEventListener("pointerleave", off);
+  el.addEventListener("pointercancel", off);
+}
+bindTouch("t-fwd","fwd");
+bindTouch("t-back","back");
+bindTouch("t-left","left");
+bindTouch("t-right","right");
+
+/* ========================= レンダリング ========================= */
+function resizeCanvas(){
+  var dpr = Math.min(window.devicePixelRatio||1, 2);
+  var rect = canvas.getBoundingClientRect();
+  var w = Math.max(240, Math.round(rect.width*dpr));
+  var h = Math.max(160, Math.round(rect.height*dpr));
+  if(canvas.width!==w) canvas.width = w;
+  if(canvas.height!==h) canvas.height = h;
+  zbuffer = new Float32Array(canvas.width);
+}
+window.addEventListener("resize", function(){
+  if(state==="playing") resizeCanvas();
+  else if(state==="mp") resizeMPCanvases();
+});
+
+// 任意のcanvas/カメラ状態/迷路に対して描画できる汎用版。
+// ソロプレイもマルチプレイの各ペインも、この同じ関数を呼び出す。
+function renderSceneTo(tctx, W, H, zbufArr, camX, camY, camAngle, walkPhase, mazeObj, fogDistVal, othersArr){
+  var bob = 0;
+  if(!reduceMotion){
+    bob = Math.sin(walkPhase) * H * 0.012;
+  }
+  var horizon = H/2 + bob;
+
+  var ceilGrad = tctx.createLinearGradient(0,0,0,Math.max(1,horizon));
+  ceilGrad.addColorStop(0, rgbStr(PAL.ceilingA));
+  ceilGrad.addColorStop(1, rgbStr(PAL.ceilingB));
+  tctx.fillStyle = ceilGrad;
+  tctx.fillRect(0,0,W,Math.max(0,horizon));
+
+  var floorGrad = tctx.createLinearGradient(0,horizon,0,H);
+  floorGrad.addColorStop(0, rgbStr(PAL.floorA));
+  floorGrad.addColorStop(1, rgbStr(PAL.floorB));
+  tctx.fillStyle = floorGrad;
+  tctx.fillRect(0,Math.max(0,horizon),W,H-Math.max(0,horizon));
+
+  var dirX = Math.cos(camAngle), dirY = Math.sin(camAngle);
+  var planeX = -dirY*PLANE_SCALE, planeY = dirX*PLANE_SCALE;
+
+  for(var x=0;x<W;x++){
+    var cameraX = 2*x/W - 1;
+    var rayDirX = dirX + planeX*cameraX;
+    var rayDirY = dirY + planeY*cameraX;
+    var mapX = Math.floor(camX), mapY = Math.floor(camY);
+    var deltaDistX = rayDirX===0 ? 1e30 : Math.abs(1/rayDirX);
+    var deltaDistY = rayDirY===0 ? 1e30 : Math.abs(1/rayDirY);
+    var stepX, stepY, sideDistX, sideDistY;
+    if(rayDirX<0){ stepX=-1; sideDistX=(camX-mapX)*deltaDistX; } else { stepX=1; sideDistX=(mapX+1-camX)*deltaDistX; }
+    if(rayDirY<0){ stepY=-1; sideDistY=(camY-mapY)*deltaDistY; } else { stepY=1; sideDistY=(mapY+1-camY)*deltaDistY; }
+    var side = 0, safety = 0, hitWall = false;
+    while(!hitWall && safety<400){
+      if(sideDistX<sideDistY){ sideDistX+=deltaDistX; mapX+=stepX; side=0; }
+      else { sideDistY+=deltaDistY; mapY+=stepY; side=1; }
+      safety++;
+      if(mapX<0||mapY<0||mapX>=mazeObj.gw||mapY>=mazeObj.gh){ hitWall=true; break; }
+      if(mazeObj.grid[mapY*mazeObj.gw+mapX]===1) hitWall=true;
+    }
+    var perpDist;
+    if(side===0) perpDist = (mapX - camX + (1-stepX)/2) / (rayDirX||1e-6);
+    else perpDist = (mapY - camY + (1-stepY)/2) / (rayDirY||1e-6);
+    perpDist = Math.max(perpDist, 0.0001);
+    zbufArr[x] = perpDist;
+
+    var lineHeight = Math.floor(H/perpDist);
+    var drawStart = Math.floor(-lineHeight/2 + horizon); if(drawStart<0) drawStart=0;
+    var drawEnd = Math.floor(lineHeight/2 + horizon); if(drawEnd>=H) drawEnd=H-1;
+
+    var wallX;
+    if(side===0) wallX = camY + perpDist*rayDirY;
+    else wallX = camX + perpDist*rayDirX;
+    wallX -= Math.floor(wallX);
+
+    var base = side===0 ? PAL.wallNS : PAL.wallEW;
+    var stripeF = Math.sin(wallX*FLUTE_FREQ*Math.PI*2) > 0 ? 1 : 0.85;
+    var cellId = mapX*131 + mapY*17 + side;
+    var jitter = 0.92 + (hash(cellId)%80)/1000;
+    var col = shade(base, stripeF*jitter);
+    // 霧が最大でも壁の縞模様をわずかに残すことで、遠くが「何もない空間」ではなく
+    // 「段ボールの通路が奥まで続いている」ように見えるようにする。
+    var fogT = Math.min(0.94, Math.pow(perpDist/fogDistVal, 1.3));
+    col = mixRgb(col, PAL.fog, fogT);
+
+    tctx.fillStyle = rgbStr(col);
+    tctx.fillRect(x, drawStart, 1, drawEnd-drawStart+1);
+  }
+
+  renderGoalMarkerTo(tctx, W,H,dirX,dirY,planeX,planeY,horizon, zbufArr, mazeObj, camX, camY, fogDistVal);
+
+  if(othersArr && othersArr.length){
+    // 奥から手前の順に描くことで、近いプレイヤーが遠いプレイヤーの前に正しく重なる。
+    var sorted = othersArr.slice().sort(function(a,b){
+      var da = (a.x-camX)*(a.x-camX)+(a.y-camY)*(a.y-camY);
+      var db = (b.x-camX)*(b.x-camX)+(b.y-camY)*(b.y-camY);
+      return db-da;
+    });
+    for(var oi=0; oi<sorted.length; oi++){
+      var o = sorted[oi];
+      renderPlayerSpriteTo(tctx, W,H,dirX,dirY,planeX,planeY,horizon, zbufArr, camX, camY, fogDistVal, o.x, o.y, o.color, o.label);
+    }
+  }
+}
+
+// 他プレイヤーを、段ボールの立て札ふうのキャラクターとして一人称視点に描画する。
+function renderPlayerSpriteTo(tctx, W, H, dirX,dirY,planeX,planeY,horizon, zbufArr, camX, camY, fogDistVal, px, py, color, label){
+  var relX = px - camX, relY = py - camY;
+  var invDet = 1/(planeX*dirY - dirX*planeY);
+  var tx = invDet*(dirY*relX - dirX*relY);
+  var ty = invDet*(-planeY*relX + planeX*relY);
+  if(ty<=0.15) return; // 真後ろ、または近すぎる
+  var screenX = (W/2)*(1+tx/ty);
+  if(screenX < -100 || screenX > W+100) return;
+
+  var samples = [screenX-8, screenX, screenX+8];
+  var visible = 0;
+  for(var s=0;s<samples.length;s++){
+    var sx = Math.max(0, Math.min(W-1, Math.floor(samples[s])));
+    if(zbufArr[sx] > ty) visible++;
+  }
+  if(visible<2) return; // 壁の向こう側
+
+  var fogT = Math.min(1, Math.pow(ty/fogDistVal,1.3));
+  if(fogT>0.92) return;
+  var alpha = 1-fogT;
+
+  var refH = Math.min(H*1.4, H/ty);
+  var spriteH = refH*0.62;
+  var spriteW = Math.max(4, spriteH*0.36);
+  var footY = horizon + refH*0.5;
+  var headR = spriteW*0.52;
+  var bodyH = Math.max(2, spriteH - headR*1.7);
+  var bodyTop = footY - bodyH - headR*0.9;
+  var rgb = hexToRgb(color||"#e2551f");
+  var dark = shade(rgb, 0.6);
+
+  tctx.save();
+
+  tctx.fillStyle = "rgba(0,0,0,"+(0.25*alpha)+")";
+  tctx.beginPath();
+  tctx.ellipse(screenX, footY, spriteW*0.62, spriteW*0.22, 0, 0, Math.PI*2);
+  tctx.fill();
+
+  roundRectPath(tctx, screenX-spriteW*0.5, bodyTop+headR*1.7, spriteW, bodyH, spriteW*0.22);
+  tctx.fillStyle = "rgba("+rgb.r+","+rgb.g+","+rgb.b+","+alpha+")";
+  tctx.fill();
+  tctx.strokeStyle = "rgba("+dark.r+","+dark.g+","+dark.b+","+alpha+")";
+  tctx.lineWidth = Math.max(1, spriteW*0.09);
+  tctx.stroke();
+
+  var headCy = bodyTop + headR*0.85;
+  tctx.beginPath();
+  tctx.arc(screenX, headCy, headR, 0, Math.PI*2);
+  tctx.fillStyle = "rgba(242,232,211,"+alpha+")";
+  tctx.fill();
+  tctx.strokeStyle = "rgba("+dark.r+","+dark.g+","+dark.b+","+alpha+")";
+  tctx.lineWidth = Math.max(1, spriteW*0.08);
+  tctx.stroke();
+
+  if(label){
+    tctx.fillStyle = "rgba(59,42,24,"+(alpha*0.85)+")";
+    tctx.font = "bold "+Math.max(9, Math.round(spriteW*0.62))+"px 'Zen Maru Gothic', sans-serif";
+    tctx.textAlign = "center";
+    tctx.fillText(label, screenX, headCy-headR-4);
+  }
+
+  tctx.restore();
+}
+
+// 同じレベルにいる、まだゴールしていない他プレイヤーの一覧を作る(一人称視点に描画する用)。
+function liveOthersFor(levelIndex, list, isSelfFn, colorOf, labelOf){
+  var out = [];
+  (list||[]).forEach(function(o){
+    if(!o) return;
+    if(isSelfFn(o)) return;
+    if(o.finished) return;
+    if(o.connected===false) return;
+    if(o.levelIndex!==levelIndex) return;
+    out.push({ x:o.x, y:o.y, color:colorOf(o), label:labelOf(o) });
+  });
+  return out;
+}
+
+function renderGoalMarkerTo(tctx, W,H,dirX,dirY,planeX,planeY,horizon, zbufArr, mazeObj, camX, camY, fogDistVal){
+  var gx = mazeObj.goalX+0.5, gy = mazeObj.goalY+0.5;
+  var relX = gx - camX, relY = gy - camY;
+  var invDet = 1/(planeX*dirY - dirX*planeY);
+  var tx = invDet*(dirY*relX - dirX*relY);
+  var ty = invDet*(-planeY*relX + planeX*relY);
+  if(ty<=0.2) return;
+  var screenX = (W/2)*(1+tx/ty);
+  if(screenX < -80 || screenX > W+80) return;
+  var refH = Math.min(H*1.4, H/ty);
+  var spriteH = refH*0.5;
+  var spriteW = spriteH*0.55;
+  var t = performance.now();
+  var pulse = reduceMotion ? 1 : (0.85 + Math.sin(t*0.004)*0.15);
+  var baseY = horizon + refH*0.5;
+  var cy = baseY - spriteH*0.5;
+
+  var samples = [screenX-spriteW*0.3, screenX, screenX+spriteW*0.3];
+  var visible = 0;
+  for(var s=0;s<samples.length;s++){
+    var sx = Math.max(0, Math.min(W-1, Math.floor(samples[s])));
+    if(zbufArr[sx] > ty) visible++;
+  }
+  if(visible<2) return;
+
+  var fogT = Math.min(1, Math.pow(ty/fogDistVal,1.3));
+  if(fogT>0.9) return;
+  var alpha = (1-fogT);
+
+  tctx.save();
+  var glowR = spriteW*2.2*pulse;
+  var grad = tctx.createRadialGradient(screenX, cy+spriteH*0.55, 1, screenX, cy+spriteH*0.55, glowR);
+  grad.addColorStop(0, "rgba("+PAL.goalGlow.r+","+PAL.goalGlow.g+","+PAL.goalGlow.b+","+(0.55*alpha)+")");
+  grad.addColorStop(1, "rgba("+PAL.goalGlow.r+","+PAL.goalGlow.g+","+PAL.goalGlow.b+",0)");
+  tctx.fillStyle = grad;
+  tctx.beginPath(); tctx.arc(screenX, cy+spriteH*0.55, glowR, 0, Math.PI*2); tctx.fill();
+
+  tctx.fillStyle = "rgba("+PAL.goal.r+","+PAL.goal.g+","+PAL.goal.b+","+alpha+")";
+  tctx.beginPath(); tctx.arc(screenX, cy+spriteH*0.55, spriteW*0.35*pulse, 0, Math.PI*2); tctx.fill();
+
+  tctx.fillStyle = "rgba("+PAL.goal.r+","+PAL.goal.g+","+PAL.goal.b+","+(alpha*0.9)+")";
+  tctx.beginPath();
+  tctx.moveTo(screenX, cy);
+  tctx.lineTo(screenX+spriteW*0.3, cy+spriteH*0.18);
+  tctx.lineTo(screenX, cy+spriteH*0.34);
+  tctx.closePath(); tctx.fill();
+  tctx.strokeStyle = "rgba("+PAL.goal.r*0.6+","+PAL.goal.g*0.6+","+PAL.goal.b*0.6+","+alpha+")";
+  tctx.lineWidth = Math.max(1,spriteW*0.05);
+  tctx.beginPath(); tctx.moveTo(screenX,cy); tctx.lineTo(screenX,cy+spriteH*0.6); tctx.stroke();
+
+  tctx.restore();
+}
+
+function renderScene(){
+  var others = (onlineActive && onlineRoomRef) ? liveOthersFor(
+    currentLevelIndex, onlinePlayers,
+    function(o){ return o.slot===onlineMySlot; },
+    function(o){ return o.color; },
+    function(o){ return o.label; }
+  ) : null;
+  renderSceneTo(ctx, canvas.width, canvas.height, zbuffer, player.x, player.y, player.angle, walkCycle, maze, fogDist, others);
+}
+
+function roundRectPath(c,x,y,w,h,r){
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r);
+  c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);
+  c.arcTo(x,y,x+w,y,r);
+  c.closePath();
+}
+
+function renderMinimap(){
+  var mW = minimapCanvas.width, mH = minimapCanvas.height;
+  mctx.clearRect(0,0,mW,mH);
+  roundRectPath(mctx,0,0,mW,mH,12);
+  mctx.fillStyle = cssVar("--surface");
+  mctx.fill();
+
+  var pad = 6;
+  var cellPx = Math.min((mW-pad*2)/maze.gw, (mH-pad*2)/maze.gh);
+  var offX = (mW - maze.gw*cellPx)/2;
+  var offY = (mH - maze.gh*cellPx)/2;
+  var pathColor = cssVar("--board-1");
+  var wallColor = cssVar("--board-3");
+  var full = minimapMode==="full";
+
+  function wallCellVisible(gx,gy){
+    if(full) return true;
+    for(var ny=gy-1; ny<=gy+1; ny++){
+      for(var nx=gx-1; nx<=gx+1; nx++){
+        if(nx<0||ny<0||nx>=maze.gw||ny>=maze.gh) continue;
+        if(maze.grid[ny*maze.gw+nx]===1) continue;
+        if(revealed.has(ny*maze.gw+nx)) return true;
+      }
+    }
+    return false;
+  }
+
+  // 段ボールの壁は「立てているだけ」の薄いものなので、マス全体を壁色で塗って
+  // 太い壁ブロックに見せるのではなく、まず道の色でマス全体を塗って(=通り抜けられる
+  // 広い空間に見せる)、その上に壁のマスだけ薄い仕切り線を重ねて描く。
+  // これで見た目の道が増え、壁は薄いカードボードの仕切りらしくなる。
+  // (未探索エリアがある「fog」モードでは、探索済みの通路に隣接するマスだけを描く)
+  mctx.fillStyle = pathColor;
+  for(var gy=0; gy<maze.gh; gy++){
+    for(var gx=0; gx<maze.gw; gx++){
+      var isPath = maze.grid[gy*maze.gw+gx]!==1;
+      var visible = isPath ? (full || revealed.has(gy*maze.gw+gx)) : wallCellVisible(gx,gy);
+      if(!visible) continue;
+      mctx.fillRect(offX+gx*cellPx, offY+gy*cellPx, cellPx+0.6, cellPx+0.6);
+    }
+  }
+
+  mctx.fillStyle = wallColor;
+  var wallInset = cellPx*0.32;
+  var wallSize = Math.max(1, cellPx - wallInset*2);
+  for(var wy=0; wy<maze.gh; wy++){
+    for(var wx=0; wx<maze.gw; wx++){
+      if(maze.grid[wy*maze.gw+wx]!==1) continue;
+      if(!wallCellVisible(wx,wy)) continue;
+      mctx.fillRect(offX+wx*cellPx+wallInset, offY+wy*cellPx+wallInset, wallSize+0.6, wallSize+0.6);
+    }
+  }
+
+  if(full || revealed.has(maze.goalY*maze.gw+maze.goalX)){
+    mctx.fillStyle = cssVar("--goal");
+    mctx.beginPath();
+    mctx.arc(offX+(maze.goalX+0.5)*cellPx, offY+(maze.goalY+0.5)*cellPx, cellPx*0.7, 0, Math.PI*2);
+    mctx.fill();
+  }
+
+  mctx.save();
+  mctx.translate(offX+player.x*cellPx, offY+player.y*cellPx);
+  mctx.rotate(player.angle);
+  mctx.fillStyle = cssVar("--accent");
+  mctx.beginPath();
+  mctx.moveTo(cellPx*1.1,0);
+  mctx.lineTo(-cellPx*0.7,cellPx*0.7);
+  mctx.lineTo(-cellPx*0.7,-cellPx*0.7);
+  mctx.closePath();
+  mctx.fill();
+  mctx.restore();
+}
+
+function updateReveal(){
+  if(minimapMode!=="fog") return;
+  var R = 2.6;
+  var gx0 = Math.max(0, Math.floor(player.x-R)), gx1 = Math.min(maze.gw-1, Math.ceil(player.x+R));
+  var gy0 = Math.max(0, Math.floor(player.y-R)), gy1 = Math.min(maze.gh-1, Math.ceil(player.y+R));
+  for(var gy=gy0; gy<=gy1; gy++){
+    for(var gx=gx0; gx<=gx1; gx++){
+      if(maze.grid[gy*maze.gw+gx]===1) continue;
+      var dx=gx+0.5-player.x, dy=gy+0.5-player.y;
+      if(dx*dx+dy*dy<=R*R) revealed.add(gy*maze.gw+gx);
+    }
+  }
+}
+
+/* ========================= マルチプレイ: ゲーム本体 ========================= */
+function initMPPlayers(){
+  mpPlayers = [];
+  for(var i=0;i<mpCount;i++){
+    mpPlayers.push({
+      idx:i, ctrl:MP_CONTROLS[i],
+      x:1.5, y:1.5, angle:0, maze:null,
+      levelIndex:0, levelStartTime:0, totalTime:0,
+      finished:false, finishTotalTime:null,
+      walkCycle:0, lastBumpTime:0,
+      wins:0, spectateViewIdx:0,
+      canvas:null, ctx:null, zbuffer:new Float32Array(1),
+      badgeTimerEl:null, badgeLevelEl:null, spectateUiEl:null, spectateLabelEl:null
+    });
+  }
+}
+
+function buildMPPanes(){
+  mpGrid.innerHTML = "";
+  mpGrid.className = "mp-grid mp-grid-" + mpCount;
+  mpPlayers.forEach(function(p){
+    var pane = document.createElement("div");
+    pane.className = "mp-pane";
+    pane.style.setProperty("--pc", p.ctrl.color);
+
+    var cv = document.createElement("canvas");
+    pane.appendChild(cv);
+
+    var hud = document.createElement("div");
+    hud.className = "mp-pane-hud";
+    var badge = document.createElement("div");
+    badge.className = "mp-pane-badge";
+    badge.textContent = p.ctrl.label + " 00:00.0";
+    var lvl = document.createElement("div");
+    lvl.className = "mp-pane-level";
+    lvl.textContent = "LEVEL 1/" + LEVELS.length;
+    hud.appendChild(badge); hud.appendChild(lvl);
+    pane.appendChild(hud);
+
+    var hint = document.createElement("div");
+    hint.className = "mp-controls-hint";
+    hint.textContent = p.ctrl.keyText;
+    pane.appendChild(hint);
+
+    var specUi = document.createElement("div");
+    specUi.className = "mp-spectate-ui";
+    specUi.hidden = true;
+    var specLabel = document.createElement("div");
+    specLabel.className = "mp-spectate-label";
+    var specBtn = document.createElement("button");
+    specBtn.type = "button"; specBtn.className = "mp-spectate-btn"; specBtn.textContent = "👁 きりかえ";
+    specBtn.addEventListener("click", function(){ sfxClick(); cycleSpectate(p); });
+    specUi.appendChild(specLabel); specUi.appendChild(specBtn);
+    pane.appendChild(specUi);
+
+    mpGrid.appendChild(pane);
+    p.canvas = cv; p.ctx = cv.getContext("2d");
+    p.badgeTimerEl = badge; p.badgeLevelEl = lvl;
+    p.spectateUiEl = specUi; p.spectateLabelEl = specLabel;
+  });
+}
+
+function resizeMPCanvases(){
+  var dpr = Math.min(window.devicePixelRatio||1, 2);
+  mpPlayers.forEach(function(p){
+    if(!p.canvas) return;
+    var rect = p.canvas.getBoundingClientRect();
+    var w = Math.max(120, Math.round(rect.width*dpr));
+    var h = Math.max(90, Math.round(rect.height*dpr));
+    if(p.canvas.width!==w) p.canvas.width = w;
+    if(p.canvas.height!==h) p.canvas.height = h;
+    p.zbuffer = new Float32Array(p.canvas.width);
+  });
+}
+
+function startMPLevelForPlayer(p, i){
+  p.levelIndex = i;
+  p.maze = getMPMaze(i);
+  if(mpSpawnMode==="separate" && p.maze.spawns && p.maze.spawns.length){
+    var sp = p.maze.spawns[p.idx % p.maze.spawns.length];
+    p.x = sp[0]+0.5; p.y = sp[1]+0.5; p.angle = openFacingAngle(p.maze, sp[0], sp[1]);
+  }else{
+    p.x = 1.5; p.y = 1.5; p.angle = p.maze.startAngle;
+  }
+  p.levelStartTime = performance.now();
+  if(p.badgeLevelEl) p.badgeLevelEl.textContent = "LEVEL " + (i+1) + "/" + LEVELS.length;
+}
+
+function startMPMatch(){
+  loadPalette();
+  mpRunSeed = randomSeed();
+  mpMazeCache = {};
+  mpLevelIndex = 0;
+  mpActive = true;
+  mpTransitioning = false;
+  initMPPlayers();
+  buildMPPanes();
+  mpPlayers.forEach(function(p){ startMPLevelForPlayer(p, 0); });
+  state = "mp";
+  showScreen("mp-game");
+  requestAnimationFrame(resizeMPCanvases);
+  flashMPToast(mpRaceMode==="race" ? "🏁 早いもの勝ち！ みんなでスタート！" : "🏆 全員ゴールを目指そう！");
+}
+
+function flashMPToast(text){
+  mpToast.innerHTML = text;
+  mpToast.classList.add("show");
+  setTimeout(function(){ mpToast.classList.remove("show"); }, 1600);
+}
+
+function otherPlayers(p){
+  return mpPlayers.filter(function(o){ return o!==p; });
+}
+function spectateViewList(p){
+  var list = [];
+  otherPlayers(p).forEach(function(o){
+    list.push({ target:o, mode:"first" });
+    list.push({ target:o, mode:"overhead" });
+  });
+  return list;
+}
+function cycleSpectate(p){
+  var list = spectateViewList(p);
+  if(list.length===0) return;
+  p.spectateViewIdx = (p.spectateViewIdx+1) % list.length;
+  updateSpectateLabel(p);
+}
+function updateSpectateLabel(p){
+  var list = spectateViewList(p);
+  if(list.length===0){ p.spectateLabelEl.textContent = "🎉 ゴール！"; return; }
+  var v = list[p.spectateViewIdx % list.length];
+  p.spectateLabelEl.textContent = "🎉 ゴール！ 👁 " + v.target.ctrl.label + (v.mode==="overhead" ? " の上空視点" : " の視点");
+}
+
+function mpPlayerFinishesLevel(p, elapsed){
+  p.totalTime += elapsed;
+  if(p.levelIndex >= LEVELS.length-1){
+    p.finished = true;
+    p.finishTotalTime = p.totalTime;
+    p.spectateViewIdx = 0;
+    show(p.spectateUiEl);
+    updateSpectateLabel(p);
+    sfxFinish();
+    if(mpPlayers.every(function(o){ return o.finished; })){
+      setTimeout(showMPResults, 1000);
+    }
+  }else{
+    p.levelIndex++;
+    startMPLevelForPlayer(p, p.levelIndex);
+  }
+}
+
+function updateMPPlayerMotion(p, dt, m){
+  var turn=0, move=0;
+  if(keys[p.ctrl.left]) turn -= 1;
+  if(keys[p.ctrl.right]) turn += 1;
+  if(keys[p.ctrl.up]) move += 1;
+  if(keys[p.ctrl.down]) move -= 1;
+  p.angle += turn*ROT_SPEED*dt;
+  if(move!==0){
+    var speed = move>0 ? MOVE_SPEED : BACK_SPEED;
+    var dx = Math.cos(p.angle)*move*speed*dt;
+    var dy = Math.sin(p.angle)*move*speed*dt;
+    var movedX=false, movedY=false;
+    if(!collidesAtIn(m, p.x+dx, p.y, PLAYER_R)){ p.x += dx; movedX=true; }
+    if(!collidesAtIn(m, p.x, p.y+dy, PLAYER_R)){ p.y += dy; movedY=true; }
+    if(movedX||movedY){
+      p.walkCycle += dt*9;
+    }else{
+      var nowMs = performance.now();
+      if(nowMs - p.lastBumpTime > 350){ sfxBump(); p.lastBumpTime = nowMs; }
+    }
+  }
+}
+
+function updateMP(dt){
+  if(mpRaceMode==="race"){
+    if(!mpTransitioning){
+      var winner = null;
+      for(var i=0;i<mpPlayers.length;i++){
+        var p = mpPlayers[i];
+        var m = p.maze;
+        if(!m) continue;
+        updateMPPlayerMotion(p, dt, m);
+        if(Math.floor(p.x)===m.goalX && Math.floor(p.y)===m.goalY){ winner = p; break; }
+      }
+      if(winner){
+        mpTransitioning = true;
+        winner.wins++;
+        sfxLevelClear();
+        flashMPToast("🏁 " + winner.ctrl.label + " が一番のりでゴール！");
+        setTimeout(function(){
+          mpLevelIndex++;
+          if(mpLevelIndex>=LEVELS.length){
+            mpActive = false;
+            showMPResults();
+          }else{
+            mpPlayers.forEach(function(pp){ startMPLevelForPlayer(pp, mpLevelIndex); });
+            mpTransitioning = false;
+          }
+        }, 1200);
+      }
+    }
+  }else{
+    mpPlayers.forEach(function(p){
+      if(p.finished) return;
+      var m = p.maze;
+      if(!m) return;
+      updateMPPlayerMotion(p, dt, m);
+      if(Math.floor(p.x)===m.goalX && Math.floor(p.y)===m.goalY){
+        var elapsed = performance.now() - p.levelStartTime;
+        mpPlayerFinishesLevel(p, elapsed);
+      }
+    });
+  }
+}
+
+// playersList の各要素は {x,y,angle,color, maze(比較用。省略時は同一マップとみなす)} を持つ想定。
+// ローカル分割マルチプレイは mpPlayers(要素は p.maze===mazeObj で絞り込み)、
+// オンライン対戦は onlinePlayers(要素は levelIndex から算出したマップで絞り込み)から呼び出す。
+function renderOverheadTo(tctx, W, H, mazeObj, focusPlayer, playersList, colorOf){
+  tctx.fillStyle = rgbStr(PAL.ceilingB);
+  tctx.fillRect(0,0,W,H);
+  if(!mazeObj) return;
+  var pad = Math.min(W,H)*0.06;
+  var cellPx = Math.min((W-pad*2)/mazeObj.gw, (H-pad*2)/mazeObj.gh);
+  var offX = (W - mazeObj.gw*cellPx)/2, offY = (H - mazeObj.gh*cellPx)/2;
+  tctx.fillStyle = rgbStr(PAL.floorA);
+  for(var gy=0; gy<mazeObj.gh; gy++){
+    for(var gx=0; gx<mazeObj.gw; gx++){
+      if(mazeObj.grid[gy*mazeObj.gw+gx]===1) continue;
+      tctx.fillRect(offX+gx*cellPx, offY+gy*cellPx, cellPx+0.6, cellPx+0.6);
+    }
+  }
+  tctx.fillStyle = rgbStr(PAL.goal);
+  tctx.beginPath();
+  tctx.arc(offX+(mazeObj.goalX+0.5)*cellPx, offY+(mazeObj.goalY+0.5)*cellPx, cellPx*0.75, 0, Math.PI*2);
+  tctx.fill();
+  colorOf = colorOf || function(pp){ return pp.ctrl ? pp.ctrl.color : pp.color; };
+  (playersList||mpPlayers).forEach(function(pp){
+    if(pp.maze !== mazeObj) return;
+    tctx.save();
+    tctx.translate(offX+pp.x*cellPx, offY+pp.y*cellPx);
+    tctx.rotate(pp.angle);
+    tctx.fillStyle = colorOf(pp);
+    var sz = pp===focusPlayer ? cellPx*1.3 : cellPx*0.9;
+    tctx.beginPath();
+    tctx.moveTo(sz,0); tctx.lineTo(-sz*0.7,sz*0.7); tctx.lineTo(-sz*0.7,-sz*0.7);
+    tctx.closePath(); tctx.fill();
+    tctx.restore();
+  });
+}
+
+function renderMPFrame(){
+  var now = performance.now();
+  mpPlayers.forEach(function(p){
+    if(!p.canvas) return;
+    if(!p.finished){
+      var fog = computeFogFor(LEVELS[p.levelIndex], p.levelIndex);
+      var others = liveOthersFor(p.levelIndex, mpPlayers, function(o){ return o===p; }, function(o){ return o.ctrl.color; }, function(o){ return o.ctrl.label; });
+      renderSceneTo(p.ctx, p.canvas.width, p.canvas.height, p.zbuffer, p.x, p.y, p.angle, p.walkCycle, p.maze, fog, others);
+      var elapsed = p.totalTime + (now - p.levelStartTime);
+      p.badgeTimerEl.textContent = p.ctrl.label + " " + msToClock(elapsed);
+    }else{
+      var list = spectateViewList(p);
+      if(list.length===0){
+        p.ctx.fillStyle = "#000"; p.ctx.fillRect(0,0,p.canvas.width,p.canvas.height);
+      }else{
+        var v = list[p.spectateViewIdx % list.length];
+        var tp = v.target;
+        if(v.mode==="first" && !tp.finished){
+          var tFog = computeFogFor(LEVELS[tp.levelIndex], tp.levelIndex);
+          var tOthers = liveOthersFor(tp.levelIndex, mpPlayers, function(o){ return o===tp; }, function(o){ return o.ctrl.color; }, function(o){ return o.ctrl.label; });
+          renderSceneTo(p.ctx, p.canvas.width, p.canvas.height, p.zbuffer, tp.x, tp.y, tp.angle, tp.walkCycle, tp.maze, tFog, tOthers);
+        }else{
+          renderOverheadTo(p.ctx, p.canvas.width, p.canvas.height, tp.maze, tp);
+        }
+      }
+      p.badgeTimerEl.textContent = p.ctrl.label + " " + msToClock(p.finishTotalTime);
+    }
+  });
+}
+
+// list の各要素は {label, color, wins, finishTotalTime} を持つ想定。
+// ローカル分割マルチプレイ・オンライン対戦のどちらの結果画面もこの共通関数で描画する。
+function showResultsScreen(list, raceModeVal){
+  var ranked = list.slice();
+  var byWins = (raceModeVal==="race" || raceModeVal==="team");
+  if(byWins){
+    ranked.sort(function(a,b){ return b.wins - a.wins; });
+  }else{
+    ranked.sort(function(a,b){
+      var at = a.finishTotalTime===null||a.finishTotalTime===undefined ? Infinity : a.finishTotalTime;
+      var bt = b.finishTotalTime===null||b.finishTotalTime===undefined ? Infinity : b.finishTotalTime;
+      return at - bt;
+    });
+  }
+  var medals = ["🥇","🥈","🥉","4️⃣"];
+  mpRankList.innerHTML = "";
+  var prevKey = null, rank = 0;
+  ranked.forEach(function(p, i){
+    // 同点(チームモードの同じチーム同士など)は同じ順位・同じメダルにする
+    var key = byWins ? p.wins : p.finishTotalTime;
+    if(key!==prevKey){ rank = i; prevKey = key; }
+    var row = document.createElement("div");
+    row.className = "mp-rank-row";
+    var medal = document.createElement("span"); medal.className = "mp-rank-medal"; medal.textContent = medals[rank] || ((rank+1)+"位");
+    var chip = document.createElement("span"); chip.className = "mp-rank-chip"; chip.style.background = p.color;
+    var name = document.createElement("span"); name.className = "mp-rank-name"; name.textContent = p.label;
+    if(raceModeVal==="team" && p.team){
+      var teamTag = document.createElement("span");
+      teamTag.className = "team-tag";
+      teamTag.style.background = TEAM_COLORS[p.team] || "#888";
+      teamTag.textContent = "チーム" + p.team;
+      name.appendChild(teamTag);
+    }
+    var stat = document.createElement("span"); stat.className = "mp-rank-stat";
+    stat.textContent = byWins ? ("クリア数 " + p.wins) : ((p.finishTotalTime!==null && p.finishTotalTime!==undefined) ? msToClock(p.finishTotalTime) : "未クリア");
+    row.appendChild(medal); row.appendChild(chip); row.appendChild(name); row.appendChild(stat);
+    mpRankList.appendChild(row);
+  });
+  showScreen("mp-results");
+}
+
+function showMPResults(){
+  mpActive = false;
+  lastResultsWasOnline = false;
+  var list = mpPlayers.map(function(p){
+    return { label:p.ctrl.label, color:p.ctrl.color, wins:p.wins, finishTotalTime:p.finishTotalTime };
+  });
+  state = "mp-results";
+  showResultsScreen(list, mpRaceMode);
+}
+
+function quitMP(){
+  mpActive = false;
+  mpTransitioning = false;
+  state = "start";
+  showScreen("start");
+}
+
+/* ========================= マルチプレイ: スタート画面UI ========================= */
+function updateMPLegend(){
+  mpControlsLegend.innerHTML = "";
+  for(var i=0;i<mpCount;i++){
+    var c = MP_CONTROLS[i];
+    var chip = document.createElement("span");
+    chip.className = "mp-legend-chip";
+    chip.style.background = c.color;
+    chip.textContent = c.label + " " + c.keyText;
+    mpControlsLegend.appendChild(chip);
+  }
+}
+function setGameMode(mode){
+  gameMode = mode;
+  modeSoloBtn.classList.toggle("active", mode==="solo");
+  modeMultiBtn.classList.toggle("active", mode==="multi");
+  if(mode==="multi"){
+    show(mpOptions);
+    updateMPLegend();
+    document.getElementById("btn-start").textContent = "みんなであそぶ！";
+  }else{
+    hide(mpOptions);
+    document.getElementById("btn-start").textContent = "たんけんをはじめる";
+  }
+  refreshOnlineUI();
+}
+modeSoloBtn.addEventListener("click", function(){ sfxClick(); setGameMode("solo"); });
+modeMultiBtn.addEventListener("click", function(){ sfxClick(); setGameMode("multi"); });
+mpCountSeg.querySelectorAll(".seg-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    sfxClick();
+    mpCount = parseInt(btn.getAttribute("data-count"),10);
+    mpCountSeg.querySelectorAll(".seg-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
+    updateMPLegend();
+  });
+});
+mpRuleSeg.querySelectorAll(".seg-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    sfxClick();
+    mpRaceMode = btn.getAttribute("data-rule");
+    mpRuleSeg.querySelectorAll(".seg-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
+    refreshOnlineUI();
+  });
+});
+mpSpawnSeg.querySelectorAll(".seg-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    sfxClick();
+    mpSpawnMode = btn.getAttribute("data-spawn");
+    mpSpawnSeg.querySelectorAll(".seg-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
+    refreshOnlineUI();
+  });
+});
+mpTeamSpawnSeg.querySelectorAll(".seg-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    sfxClick();
+    mpTeamSpawnMode = btn.getAttribute("data-teamspawn");
+    mpTeamSpawnSeg.querySelectorAll(".seg-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
+  });
+});
+document.getElementById("mp-quit-btn").addEventListener("click", function(){ sfxClick(); quitMP(); });
+document.getElementById("btn-mp-retry").addEventListener("click", function(){
+  sfxClick();
+  if(lastResultsWasOnline){ leaveOnlineRoom(); showScreen("start"); }
+  else{ startMPMatch(); }
+});
+document.getElementById("btn-mp-quit").addEventListener("click", function(){
+  sfxClick();
+  leaveOnlineRoom();
+  quitMP();
+});
+
+/* ========================= オンライン対戦(別々の端末) ========================= */
+var mpLocation = "local";   // "local" | "online"
+var onlineTab = "create";   // "create" | "join"
+var fbApp=null, fbDb=null, fbAuth=null, firebaseReady=false;
+var onlineRoomRef = null;
+var onlineRoomCode = null;
+var onlineMySlot = -1;
+var onlineCount = 2;
+var onlineRaceMode = "race";
+var onlineSpawnMode = "shared";      // ホストが選んだ設定を へや作成時にコピーし、参加者は へや情報から受け取る
+var onlineTeamSpawnMode = "grouped";
+var onlineRunSeed = 0;
+var onlineMazeCache = {};
+var onlinePlayers = [];
+var onlineActive = false;
+var onlineFinished = false;
+var onlineFinishTotalTime = null;
+var onlineClaiming = false;
+var onlineWaitingAdvance = false;
+var onlineSpectateViewIdx = 0;
+var onlineLastPush = 0;
+var lastResultsWasOnline = false;
+var onlineTeams = {};      // slot(int) -> "A"|"B" 。チーム協力モード専用
+var onlineTeamWins = {};   // "A"/"B" -> クリア数。チーム協力モード専用
+var TEAM_COLORS = { A:"#e2551f", B:"#3877c6" };
+
+function isFirebaseConfigured(){
+  return !!(FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf("YOUR_")!==0);
+}
+function initFirebaseIfNeeded(cb){
+  if(!isFirebaseConfigured()){ cb(new Error("not-configured")); return; }
+  if(firebaseReady){ cb(null); return; }
+  if(typeof firebase==="undefined"){ cb(new Error("sdk-not-loaded")); return; }
+  try{
+    fbApp = (firebase.apps && firebase.apps.length) ? firebase.apps[0] : firebase.initializeApp(FIREBASE_CONFIG);
+    fbDb = firebase.database();
+    fbAuth = firebase.auth();
+    fbAuth.signInAnonymously().then(function(){ firebaseReady = true; cb(null); }).catch(function(err){ cb(err); });
+  }catch(e){ cb(e); }
+}
+function showOnlineError(err, customMsg){
+  var msg = customMsg;
+  if(!msg){
+    if(err && err.message==="not-configured") msg = "オンライン機能を使うには、ゲームファイル内の FIREBASE_CONFIG の設定が必要です。セットアップ手順をご確認ください。";
+    else if(err && err.message==="sdk-not-loaded") msg = "オンライン機能の読み込みに失敗しました。通信環境をご確認ください。";
+    else msg = "通信に失敗しました。しばらくしてからもう一度お試しください。";
+  }
+  onlineStatusMsg.textContent = "⚠️ " + msg;
+}
+var ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 紛らわしい文字(I/O/0/1)は除外
+function randomRoomCode(){
+  var s = "";
+  for(var i=0;i<4;i++){ s += ROOM_CODE_CHARS[(Math.random()*ROOM_CODE_CHARS.length)|0]; }
+  return s;
+}
+function getOnlineMaze(i){
+  if(!onlineMazeCache[i]){
+    var m = generateMaze(LEVELS[i].cols, LEVELS[i].rows, mulberry32(levelSeed(onlineRunSeed, i)));
+    m.spawns = pickSpawnPoints(m, 4, mulberry32((levelSeed(onlineRunSeed, i) ^ SPAWN_SEED_OFFSET) >>> 0));
+    onlineMazeCache[i] = m;
+  }
+  return onlineMazeCache[i];
+}
+
+function createOnlineRoom(){
+  onlineStatusMsg.textContent = "";
+  initFirebaseIfNeeded(function(err){
+    if(err){ showOnlineError(err); return; }
+    var code = randomRoomCode();
+    onlineRunSeed = randomSeed();
+    onlineMazeCache = {};
+    onlineMySlot = 0;
+    onlineCount = mpCount;
+    onlineRaceMode = mpRaceMode;
+    onlineSpawnMode = mpSpawnMode;
+    onlineTeamSpawnMode = mpTeamSpawnMode;
+    onlineRoomCode = code;
+    var roomRef = fbDb.ref("rooms/"+code);
+    var initialPlayers = {};
+    initialPlayers[0] = {
+      connected:true, x:1.5, y:1.5, angle:0, levelIndex:0, totalTime:0,
+      finished:false, wins:0, lastSeen: firebase.database.ServerValue.TIMESTAMP
+    };
+    var initialTeams = {};
+    for(var ti=0; ti<onlineCount; ti++){ initialTeams[ti] = (ti%2===0) ? "A" : "B"; }
+    roomRef.set({
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+      raceMode: onlineRaceMode,
+      count: onlineCount,
+      spawnMode: onlineSpawnMode,
+      teamSpawnMode: onlineTeamSpawnMode,
+      runSeed: onlineRunSeed,
+      levelIndex: -1,
+      teamProgress: { levelIndex:-1, clearedTeams:[], activeTeams:[], lastWinnerTeam:null, wins:{} },
+      teams: initialTeams,
+      players: initialPlayers
+    }).then(function(){
+      onlineRoomRef = roomRef;
+      roomRef.child("players/0").onDisconnect().update({connected:false});
+      listenOnlineRoom();
+      enterOnlineLobby();
+    }).catch(function(){
+      showOnlineError(null, "へやを作成できませんでした。通信環境をご確認ください。");
+    });
+  });
+}
+
+function joinOnlineRoom(codeRaw){
+  onlineStatusMsg.textContent = "";
+  var code = (codeRaw||"").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,4);
+  if(!code){ showOnlineError(null, "へやコードを入力してください。"); return; }
+  initFirebaseIfNeeded(function(err){
+    if(err){ showOnlineError(err); return; }
+    var roomRef = fbDb.ref("rooms/"+code);
+    roomRef.get().then(function(snap){
+      if(!snap.exists()){ showOnlineError(null, "そのコードのへやが見つかりません。"); return; }
+      var data = snap.val() || {};
+      if((data.levelIndex!==undefined && data.levelIndex!==null ? data.levelIndex : -1) >= 0){
+        showOnlineError(null, "このへやはすでに開始しています。"); return;
+      }
+      var count = data.count || 2;
+      var playersData = data.players || {};
+      var slot = -1;
+      for(var i=0;i<count;i++){
+        if(!playersData[i] || playersData[i].connected===false){ slot=i; break; }
+      }
+      if(slot===-1){ showOnlineError(null, "このへやは満員です。"); return; }
+      onlineMySlot = slot;
+      onlineCount = count;
+      onlineRaceMode = data.raceMode || "race";
+      onlineSpawnMode = data.spawnMode || "shared";
+      onlineTeamSpawnMode = data.teamSpawnMode || "grouped";
+      onlineRunSeed = data.runSeed;
+      onlineMazeCache = {};
+      onlineRoomCode = code;
+      roomRef.child("players/"+slot).update({
+        connected:true, x:1.5, y:1.5, angle:0, levelIndex:0, totalTime:0,
+        finished:false, wins:0, lastSeen: firebase.database.ServerValue.TIMESTAMP
+      }).then(function(){
+        onlineRoomRef = roomRef;
+        roomRef.child("players/"+slot).onDisconnect().update({connected:false});
+        listenOnlineRoom();
+        enterOnlineLobby();
+      });
+    }).catch(function(){
+      showOnlineError(null, "接続に失敗しました。通信環境をご確認ください。");
+    });
+  });
+}
+
+function listenOnlineRoom(){
+  onlinePlayers = [];
+  for(var i=0;i<onlineCount;i++){
+    onlinePlayers.push({
+      slot:i, label:"P"+(i+1), color:MP_CONTROLS[i].color, connected:false,
+      x:1.5, y:1.5, angle:0, maze:null, levelIndex:0, totalTime:0,
+      finished:false, finishTotalTime:null, wins:0
+    });
+  }
+  onlineRoomRef.child("players").on("value", function(snap){
+    var val = snap.val() || {};
+    for(var i=0;i<onlineCount;i++){
+      var d = val[i] || {};
+      var rec = onlinePlayers[i];
+      if(!rec) continue;
+      rec.connected = !!d.connected;
+      if(i===onlineMySlot) continue; // 自分のぶんはローカルの値を正とする
+      rec.x = (d.x!=null) ? d.x : 1.5;
+      rec.y = (d.y!=null) ? d.y : 1.5;
+      rec.angle = d.angle || 0;
+      rec.levelIndex = d.levelIndex || 0;
+      rec.maze = getOnlineMaze(rec.levelIndex);
+      rec.totalTime = d.totalTime || 0;
+      rec.finished = !!d.finished;
+      rec.finishTotalTime = (d.finishTotalTime!=null) ? d.finishTotalTime : null;
+      rec.wins = d.wins || 0;
+    }
+    updateLobbyRoster();
+    if(onlineActive){ updateOnlineRoster(); checkOnlineAllFinished(); }
+  });
+  onlineRoomRef.child("levelIndex").on("value", function(snap){
+    var idx = snap.val();
+    if(idx===null || idx===undefined) idx = -1;
+    if(idx>=0 && !onlineActive && state!=="mp-results"){
+      onlineActive = true;
+      onlineFinished = false;
+      onlineFinishTotalTime = null;
+      onlineClaiming = false;
+      onlineWaitingAdvance = false;
+      totalTime = 0;
+      hide(scrOnlineLobby);
+      loadPalette();
+      startOnlineLevel(onlineRaceMode==="race" ? idx : 0);
+      flashLevelToast("🌐 オンライン対戦スタート！");
+      return;
+    }
+    if(!onlineActive || onlineRaceMode!=="race") return;
+    if(idx>=LEVELS.length){
+      onlineActive = false;
+      showOnlineResults();
+      return;
+    }
+    if(idx>currentLevelIndex){
+      sfxLevelClear();
+      flashLevelToast((idx+1)+"／"+LEVELS.length+"　"+LEVELS[idx].label);
+      startOnlineLevel(idx);
+    }
+  });
+  onlineRoomRef.child("teams").on("value", function(snap){
+    onlineTeams = snap.val() || {};
+    updateLobbyRoster();
+    if(onlineActive) updateOnlineRoster();
+  });
+  onlineRoomRef.child("teamProgress").on("value", function(snap){
+    var tp = snap.val();
+    if(!tp) return;
+    var idx = (tp.levelIndex!==undefined && tp.levelIndex!==null) ? tp.levelIndex : -1;
+    if(onlineRaceMode!=="team") return; // 他モードでは無視(teamProgressは未使用)
+    // 勝敗カウントはteamProgressと同じトランザクション内で更新されるので、
+    // このスナップショットから読めば必ずlevelIndexの更新と矛盾のない最新値になる。
+    onlineTeamWins = tp.wins || {};
+    if(onlineActive) updateOnlineRoster();
+    if(idx>=0 && !onlineActive && state!=="mp-results"){
+      onlineActive = true;
+      onlineFinished = false;
+      onlineFinishTotalTime = null;
+      onlineClaiming = false;
+      onlineWaitingAdvance = false;
+      totalTime = 0;
+      hide(scrOnlineLobby);
+      loadPalette();
+      startOnlineLevel(idx);
+      flashLevelToast("🌐 オンライン対戦スタート！(チーム協力モード)");
+      return;
+    }
+    if(!onlineActive) return;
+    if(idx>=LEVELS.length){
+      onlineActive = false;
+      showOnlineResults();
+      return;
+    }
+    if(idx>currentLevelIndex){
+      sfxLevelClear();
+      flashLevelToast((idx+1)+"／"+LEVELS.length+"　"+LEVELS[idx].label);
+      startOnlineLevel(idx);
+    }
+  });
+}
+
+function updateLobbyRoster(){
+  if(!lobbyRoster) return;
+  lobbyRoster.innerHTML = "";
+  var connectedCount = 0;
+  var isTeamMode = onlineRaceMode==="team";
+  for(var i=0;i<onlineCount;i++){
+    var p = onlinePlayers[i];
+    if(!p) continue;
+    var isMe = i===onlineMySlot;
+    var connected = isMe ? true : p.connected;
+    var row = document.createElement("div");
+    row.className = "lobby-roster-row";
+    var chip = document.createElement("span"); chip.className = "mp-rank-chip"; chip.style.background = p.color;
+    var name = document.createElement("span"); name.className = "mp-rank-name";
+    name.textContent = p.label + (isMe ? "(あなた)" : "") + (i===0 ? " ・ホスト" : "");
+    if(isTeamMode){
+      var teamTag = document.createElement("span");
+      teamTag.className = "team-tag";
+      var team = onlineTeams[i] || "A";
+      teamTag.style.background = TEAM_COLORS[team] || "#888";
+      teamTag.textContent = "チーム" + team;
+      name.appendChild(teamTag);
+    }
+    var status = document.createElement("span"); status.className = "mp-rank-stat";
+    status.textContent = connected ? "✅ 参加ずみ" : "…まち";
+    row.appendChild(chip); row.appendChild(name); row.appendChild(status);
+    lobbyRoster.appendChild(row);
+    if(connected) connectedCount++;
+  }
+  roomCodeDisplay.textContent = onlineRoomCode || "----";
+
+  if(isTeamMode){
+    show(lobbyTeamAssign);
+    lobbyTeamRows.innerHTML = "";
+    for(var j=0;j<onlineCount;j++){
+      var pj = onlinePlayers[j];
+      if(!pj) continue;
+      var trow = document.createElement("div");
+      trow.className = "lobby-team-row";
+      var tname = document.createElement("span"); tname.className = "mp-rank-name";
+      tname.textContent = pj.label + (j===onlineMySlot ? "(あなた)" : "");
+      var tbtn = document.createElement("button");
+      tbtn.type = "button";
+      var curTeam = onlineTeams[j] || "A";
+      tbtn.className = "team-toggle-btn";
+      tbtn.textContent = "チーム" + curTeam + "  🔁";
+      tbtn.style.background = TEAM_COLORS[curTeam] || "#888";
+      tbtn.style.color = "#fff";
+      if(onlineMySlot!==0){ tbtn.disabled = true; tbtn.textContent = "チーム" + curTeam; }
+      else{
+        (function(slot, team){
+          tbtn.addEventListener("click", function(){
+            sfxClick();
+            var nextTeam = team==="A" ? "B" : "A";
+            onlineRoomRef.child("teams/"+slot).set(nextTeam);
+          });
+        })(j, curTeam);
+      }
+      trow.appendChild(tname); trow.appendChild(tbtn);
+      lobbyTeamRows.appendChild(trow);
+    }
+  }else{
+    hide(lobbyTeamAssign);
+  }
+
+  if(onlineMySlot===0){
+    show(btnOnlineStart);
+    btnOnlineStart.disabled = connectedCount<2;
+    btnOnlineStart.textContent = connectedCount<2 ? "みんなであそぶ！(2人以上で開始できます)" : "みんなであそぶ！";
+    lobbyStatusMsg.textContent = "";
+  }else{
+    hide(btnOnlineStart);
+    lobbyStatusMsg.textContent = "ホストが開始するのを待っています…";
+  }
+}
+
+function enterOnlineLobby(){
+  showScreen("online-lobby");
+  updateLobbyRoster();
+}
+
+// バラバラのスタート地点モードで、自分がmaze.spawns配列の何番目を使うかを決める。
+// チーム協力モード+「チームで同じ地点」のときはチーム(A/B)ごとに1地点を共有し、
+// それ以外(早いもの勝ち・全員ゴール・チームでもバラバラ)はスロット番号ごとに個別の地点を使う。
+function spawnIndexForOnline(){
+  if(onlineRaceMode==="team" && onlineTeamSpawnMode==="grouped"){
+    var t = onlineTeams[onlineMySlot] || "A";
+    return t==="B" ? 1 : 0;
+  }
+  return onlineMySlot;
+}
+
+function startOnlineLevel(i){
+  currentLevelIndex = i;
+  maze = getOnlineMaze(i);
+  if(onlineSpawnMode==="separate" && maze.spawns && maze.spawns.length){
+    var sp = maze.spawns[spawnIndexForOnline() % maze.spawns.length];
+    player.x = sp[0]+0.5; player.y = sp[1]+0.5; player.angle = openFacingAngle(maze, sp[0], sp[1]);
+  }else{
+    player.x = 1.5; player.y = 1.5; player.angle = maze.startAngle;
+  }
+  fogDist = computeFogFor(LEVELS[i], i);
+  levelStartTime = performance.now();
+  hudLevel.textContent = String(i+1);
+  hintRevealedUntil = 0;
+  updateHintUI();
+  onlineFinished = false;
+  onlineWaitingAdvance = false;
+  hide(onlineSpectateUi);
+  if(onlinePlayers[onlineMySlot]){
+    onlinePlayers[onlineMySlot].maze = maze;
+    onlinePlayers[onlineMySlot].levelIndex = i;
+  }
+  showScreen("game");
+  state = "playing";
+  requestAnimationFrame(resizeCanvas);
+}
+
+function onlineReachGoal(){
+  var elapsed = performance.now() - levelStartTime;
+  if(onlineRaceMode==="race"){
+    if(!onlineClaiming && !onlineWaitingAdvance){
+      onlineWaitingAdvance = true;
+      claimOnlineLevelWin(currentLevelIndex, elapsed);
+    }
+    state = "playing";
+  }else if(onlineRaceMode==="team"){
+    if(!onlineClaiming && !onlineWaitingAdvance){
+      onlineWaitingAdvance = true;
+      claimTeamLevelClear(currentLevelIndex);
+    }
+    state = "playing";
+  }else{
+    totalTime += elapsed;
+    var nextIndex = currentLevelIndex + 1;
+    if(nextIndex >= LEVELS.length){
+      onlineFinished = true;
+      onlineFinishTotalTime = totalTime;
+      if(onlinePlayers[onlineMySlot]){
+        onlinePlayers[onlineMySlot].finished = true;
+        onlinePlayers[onlineMySlot].finishTotalTime = totalTime;
+      }
+      onlineSpectateViewIdx = 0;
+      updateOnlineSpectateLabel();
+      show(onlineSpectateUi);
+      sfxFinish();
+      pushOnlineState(true);
+      checkOnlineAllFinished(); // 全員ゴールしていればここで state="mp-results" に遷移する
+      if(state!=="mp-results"){ state = "playing"; }
+    }else{
+      startOnlineLevel(nextIndex); // 内部で state="playing" を設定済み
+      sfxLevelClear();
+      flashLevelToast((nextIndex+1)+"／"+LEVELS.length+"　"+LEVELS[nextIndex].label);
+      pushOnlineState(true);
+    }
+  }
+}
+
+function claimOnlineLevelWin(expectedIdx, elapsed){
+  if(onlineClaiming || !onlineRoomRef) return;
+  onlineClaiming = true;
+  onlineRoomRef.child("levelIndex").transaction(function(cur){
+    if(cur===expectedIdx){ return expectedIdx+1; }
+    return; // 誰かが先に進めていたら中断
+  }, function(err, committed, snap){
+    onlineClaiming = false;
+    if(!err && committed && snap && snap.val()===expectedIdx+1){
+      var newWins = ((onlinePlayers[onlineMySlot] && onlinePlayers[onlineMySlot].wins) || 0) + 1;
+      if(onlinePlayers[onlineMySlot]) onlinePlayers[onlineMySlot].wins = newWins;
+      onlineRoomRef.child("players/"+onlineMySlot).update({ wins:newWins });
+    }
+  });
+}
+
+// チーム協力モード: 自分のチームがこのレベルをクリアしたことを記録し、
+// 参加している全チームがクリアし終えたら次のレベルへ進める(1回のトランザクションで両方を判定)。
+function claimTeamLevelClear(expectedIdx){
+  if(onlineClaiming || !onlineRoomRef) return;
+  var myTeam = onlineTeams[onlineMySlot] || "A";
+  onlineClaiming = true;
+  onlineRoomRef.child("teamProgress").transaction(function(cur){
+    if(!cur || cur.levelIndex!==expectedIdx) return; // 誰かが先に進めていたら中断
+    var cleared = (cur.clearedTeams||[]).slice();
+    if(cleared.indexOf(myTeam)===-1) cleared.push(myTeam);
+    var active = (cur.activeTeams && cur.activeTeams.length) ? cur.activeTeams : [myTeam];
+    var wins = Object.assign({}, cur.wins||{});
+    var allCleared = active.every(function(t){ return cleared.indexOf(t)!==-1; });
+    if(allCleared){
+      // 勝敗カウントの更新もlevelIndexの前進と同じトランザクションで行うことで、
+      // 「進んだのに勝敗数がまだ反映されていない」瞬間が発生しないようにする。
+      var winner = cleared[0];
+      wins[winner] = (wins[winner]||0) + 1;
+      return { levelIndex: cur.levelIndex+1, clearedTeams:[], activeTeams:active, lastWinnerTeam: winner, wins: wins };
+    }
+    return { levelIndex: cur.levelIndex, clearedTeams: cleared, activeTeams: active, lastWinnerTeam: cur.lastWinnerTeam||null, wins: wins };
+  }, function(err, committed, snap){
+    onlineClaiming = false;
+  });
+}
+
+function onlineSyncTick(now, force){
+  if(!onlineRoomRef || onlineMySlot<0) return;
+  if(!force && now - onlineLastPush < 150) return;
+  onlineLastPush = now;
+  var elapsedThisLevel = onlineFinished ? 0 : (now - levelStartTime);
+  var payload = {
+    connected:true,
+    x: Math.round(player.x*1000)/1000,
+    y: Math.round(player.y*1000)/1000,
+    angle: Math.round(player.angle*1000)/1000,
+    levelIndex: currentLevelIndex,
+    totalTime: Math.round(totalTime + elapsedThisLevel),
+    finished: onlineFinished,
+    finishTotalTime: onlineFinished ? onlineFinishTotalTime : null,
+    wins: (onlinePlayers[onlineMySlot] && onlinePlayers[onlineMySlot].wins) || 0
+  };
+  try{ payload.lastSeen = firebase.database.ServerValue.TIMESTAMP; }catch(e){}
+  onlineRoomRef.child("players/"+onlineMySlot).update(payload);
+}
+function pushOnlineState(force){ onlineSyncTick(performance.now(), !!force); }
+
+function updateOnlineRoster(){
+  if(!onlineActive) return;
+  onlineRosterEl.hidden = false;
+  onlineRosterEl.innerHTML = "";
+  for(var i=0;i<onlineCount;i++){
+    var p = onlinePlayers[i];
+    if(!p) continue;
+    var isMe = i===onlineMySlot;
+    var row = document.createElement("div");
+    row.className = "online-roster-row" + (isMe ? " me" : "");
+    var chip = document.createElement("span"); chip.className = "mp-rank-chip"; chip.style.background = p.color;
+    var txt = document.createElement("span");
+    var finished = isMe ? onlineFinished : p.finished;
+    var lvl = isMe ? currentLevelIndex : p.levelIndex;
+    var team = onlineTeams[i];
+    var teamWins = team ? (onlineTeamWins[team]||0) : 0;
+    var statusTxt;
+    if(!isMe && !p.connected) statusTxt = "…";
+    else if(onlineRaceMode==="team") statusTxt = "🏆"+teamWins;
+    else if(finished) statusTxt = onlineRaceMode==="race" ? ("🏆"+(p.wins||0)) : "🏁";
+    else statusTxt = "LV"+(lvl+1);
+    txt.textContent = p.label + (team ? ("["+team+"] ") : "") + (isMe ? "(あなた) " : " ") + statusTxt;
+    row.appendChild(chip); row.appendChild(txt);
+    onlineRosterEl.appendChild(row);
+  }
+}
+
+function checkOnlineAllFinished(){
+  if(onlineRaceMode==="race" || onlineRaceMode==="team" || !onlineActive) return;
+  var connectedList = [];
+  for(var i=0;i<onlineCount;i++){
+    var p = onlinePlayers[i];
+    if(!p) continue;
+    var isMe = i===onlineMySlot;
+    var connected = isMe ? true : p.connected;
+    if(connected) connectedList.push({ finished: isMe ? onlineFinished : p.finished });
+  }
+  if(connectedList.length>=2 && connectedList.every(function(c){ return c.finished; })){
+    onlineActive = false;
+    showOnlineResults();
+  }
+}
+
+function onlineSpectateOthers(){
+  var others = [];
+  for(var i=0;i<onlineCount;i++){
+    if(i===onlineMySlot) continue;
+    var p = onlinePlayers[i];
+    if(p && p.connected) others.push(p);
+  }
+  return others;
+}
+function onlineSpectateTarget(){
+  var others = onlineSpectateOthers();
+  if(others.length===0) return null;
+  var total = others.length*2;
+  var idx = ((onlineSpectateViewIdx % total) + total) % total;
+  return { target: others[Math.floor(idx/2)], mode: (idx%2===0) ? "first" : "overhead" };
+}
+function updateOnlineSpectateLabel(){
+  var v = onlineSpectateTarget();
+  if(!v){ onlineSpectateLabel.textContent = "🎉 ゴール！ 他のプレイヤーを待っています"; return; }
+  onlineSpectateLabel.textContent = "🎉 ゴール！ 👁 " + v.target.label + (v.mode==="overhead" ? " の上空視点" : " の視点");
+}
+function renderOnlineSpectate(){
+  var v = onlineSpectateTarget();
+  if(!v){
+    ctx.fillStyle = "#000"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    return;
+  }
+  var tp = v.target;
+  var tMaze = getOnlineMaze(tp.levelIndex);
+  tp.maze = tMaze;
+  if(v.mode==="first" && !tp.finished){
+    var tFog = computeFogFor(LEVELS[tp.levelIndex], tp.levelIndex);
+    var tOthers = liveOthersFor(tp.levelIndex, onlinePlayers, function(o){ return o===tp; }, function(o){ return o.color; }, function(o){ return o.label; });
+    renderSceneTo(ctx, canvas.width, canvas.height, zbuffer, tp.x, tp.y, tp.angle, walkCycle, tMaze, tFog, tOthers);
+  }else{
+    var allForOverhead = onlineSpectateOthers().map(function(o){ o.maze = getOnlineMaze(o.levelIndex); return o; });
+    renderOverheadTo(ctx, canvas.width, canvas.height, tMaze, tp, allForOverhead, function(pp){ return pp.color; });
+  }
+}
+
+function showOnlineResults(){
+  onlineActive = false;
+  lastResultsWasOnline = true;
+  detachOnlineListeners();
+  var list = [];
+  for(var i=0;i<onlineCount;i++){
+    var p = onlinePlayers[i];
+    if(!p) continue;
+    var isMe = i===onlineMySlot;
+    var connected = isMe ? true : p.connected;
+    if(!connected) continue;
+    var team = onlineTeams[i];
+    list.push({
+      label:p.label, color:p.color,
+      wins: (onlineRaceMode==="team") ? (team ? (onlineTeamWins[team]||0) : 0) : (p.wins||0),
+      team: team,
+      finishTotalTime: isMe ? onlineFinishTotalTime : p.finishTotalTime
+    });
+  }
+  state = "mp-results";
+  showResultsScreen(list, onlineRaceMode);
+}
+
+function detachOnlineListeners(){
+  if(onlineRoomRef){
+    try{
+      onlineRoomRef.child("players").off();
+      onlineRoomRef.child("levelIndex").off();
+      onlineRoomRef.child("teams").off();
+      onlineRoomRef.child("teamProgress").off();
+    }catch(e){}
+  }
+}
+
+function leaveOnlineRoom(){
+  if(onlineRoomRef && onlineMySlot>=0){
+    try{
+      onlineRoomRef.child("players/"+onlineMySlot).update({connected:false});
+      onlineRoomRef.child("players/"+onlineMySlot).onDisconnect().cancel();
+    }catch(e){}
+  }
+  detachOnlineListeners();
+  onlineRoomRef = null;
+  onlineActive = false;
+  onlineFinished = false;
+  onlineMySlot = -1;
+  onlineRoomCode = null;
+  onlinePlayers = [];
+  onlineTeams = {};
+  onlineTeamWins = {};
+  hide(onlineSpectateUi);
+  hide(lobbyTeamAssign);
+  onlineRosterEl.hidden = true;
+}
+
+/* ========================= オンライン: スタート画面/ロビーUI ========================= */
+function refreshOnlineUI(){
+  var isOnline = gameMode==="multi" && mpLocation==="online";
+  if(isOnline){ show(onlinePanel); } else { hide(onlinePanel); }
+  mpControlsLegend.hidden = isOnline;
+  mpHintNoteLocal.hidden = isOnline;
+  if(gameMode==="multi") document.getElementById("btn-start").hidden = isOnline;
+  var showCountRule = !isOnline || onlineTab==="create";
+  mpCountRuleRows.hidden = !showCountRule;
+  ruleTeamBtn.hidden = !isOnline;
+  mpTeamSpawnRow.hidden = !(isOnline && mpRaceMode==="team" && mpSpawnMode==="separate");
+  if(!isOnline && mpRaceMode==="team"){
+    // チーム協力モードはオンライン専用なので、ローカルに切り替えたら早いもの勝ちに戻す
+    mpRaceMode = "race";
+    mpRuleSeg.querySelectorAll(".seg-btn").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-rule")==="race");
+    });
+  }
+  if(isOnline && !isFirebaseConfigured()){
+    onlineStatusMsg.textContent = "⚠️ オンライン機能を使うには、ゲームファイル内の FIREBASE_CONFIG の設定が必要です。";
+  }else if(isOnline){
+    onlineStatusMsg.textContent = "";
+  }
+}
+function setMpLocation(loc){
+  mpLocation = loc;
+  mpLocationSeg.querySelectorAll(".seg-btn").forEach(function(b){
+    b.classList.toggle("active", b.getAttribute("data-loc")===loc);
+  });
+  refreshOnlineUI();
+}
+mpLocationSeg.querySelectorAll(".seg-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){ sfxClick(); setMpLocation(btn.getAttribute("data-loc")); });
+});
+onlineTabCreate.addEventListener("click", function(){
+  sfxClick(); onlineTab = "create";
+  onlineTabCreate.classList.add("active"); onlineTabJoin.classList.remove("active");
+  show(onlineCreateBox); hide(onlineJoinBox);
+  refreshOnlineUI();
+});
+onlineTabJoin.addEventListener("click", function(){
+  sfxClick(); onlineTab = "join";
+  onlineTabJoin.classList.add("active"); onlineTabCreate.classList.remove("active");
+  hide(onlineCreateBox); show(onlineJoinBox);
+  refreshOnlineUI();
+});
+document.getElementById("btn-online-create").addEventListener("click", function(){ sfxClick(); createOnlineRoom(); });
+document.getElementById("btn-online-join").addEventListener("click", function(){ sfxClick(); joinOnlineRoom(onlineRoomInput.value); });
+document.getElementById("btn-copy-room-code").addEventListener("click", function(){
+  sfxClick();
+  var btn = document.getElementById("btn-copy-room-code");
+  function done(ok){
+    btn.textContent = ok ? "✅ コピーしました！" : "📋 コードをコピー";
+    if(ok) setTimeout(function(){ btn.textContent = "📋 コードをコピー"; }, 2000);
+  }
+  var text = onlineRoomCode || "";
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ done(true); }).catch(function(){ done(false); });
+  }else{
+    try{
+      var tmp = document.createElement("textarea");
+      tmp.value = text; document.body.appendChild(tmp); tmp.select();
+      done(document.execCommand("copy"));
+      document.body.removeChild(tmp);
+    }catch(e){ done(false); }
+  }
+});
+document.getElementById("btn-online-leave").addEventListener("click", function(){
+  sfxClick(); leaveOnlineRoom(); showScreen("start");
+});
+btnOnlineStart.addEventListener("click", function(){
+  sfxClick();
+  if(!onlineRoomRef) return;
+  if(onlineRaceMode==="team"){
+    var activeTeamsSet = {};
+    for(var i=0;i<onlineCount;i++){
+      var p = onlinePlayers[i];
+      var connected = (i===onlineMySlot) ? true : (p && p.connected);
+      if(connected){ activeTeamsSet[onlineTeams[i] || "A"] = true; }
+    }
+    var activeTeams = Object.keys(activeTeamsSet);
+    onlineRoomRef.child("teamProgress").set({ levelIndex:0, clearedTeams:[], activeTeams:activeTeams, lastWinnerTeam:null, wins:{} });
+  }else{
+    onlineRoomRef.child("levelIndex").set(0);
+  }
+});
+document.getElementById("online-spectate-btn").addEventListener("click", function(){
+  sfxClick();
+  var others = onlineSpectateOthers();
+  if(others.length>0) onlineSpectateViewIdx = (onlineSpectateViewIdx+1) % (others.length*2);
+  updateOnlineSpectateLabel();
+});
+refreshOnlineUI();
+
+/* ========================= メインループ ========================= */
+var lastT = performance.now();
+function loop(now){
+  var dt = Math.min(0.05, (now-lastT)/1000);
+  lastT = now;
+
+  if(state==="playing" && maze){
+    if(onlineActive && onlineFinished){
+      renderOnlineSpectate();
+    }else{
+      var turn = 0, move = 0;
+      if(keys.ArrowLeft || keys.KeyA || touchState.left) turn -= 1;
+      if(keys.ArrowRight || keys.KeyD || touchState.right) turn += 1;
+      if(keys.ArrowUp || keys.KeyW || touchState.fwd) move += 1;
+      if(keys.ArrowDown || keys.KeyS || touchState.back) move -= 1;
+
+      player.angle += turn*ROT_SPEED*dt;
+
+      if(move!==0){
+        var speed = move>0 ? MOVE_SPEED : BACK_SPEED;
+        var dx = Math.cos(player.angle)*move*speed*dt;
+        var dy = Math.sin(player.angle)*move*speed*dt;
+        var movedX = false, movedY = false;
+        if(!collidesAt(player.x+dx, player.y, PLAYER_R)){ player.x += dx; movedX = true; }
+        if(!collidesAt(player.x, player.y+dy, PLAYER_R)){ player.y += dy; movedY = true; }
+        if(movedX || movedY){
+          walkCycle += dt*9;
+          if(walkCycle - lastStepCycle > Math.PI){
+            sfxStep();
+            lastStepCycle = walkCycle;
+          }
+        }else{
+          var nowMs = performance.now();
+          if(nowMs - lastBumpTime > 350){
+            sfxBump();
+            lastBumpTime = nowMs;
+          }
+        }
+      }
+
+      updateReveal();
+
+      var angToGoal = Math.atan2(maze.goalY+0.5-player.y, maze.goalX+0.5-player.x);
+      var rel = angToGoal - player.angle;
+      compassArrow.style.transform = "rotate(" + rel + "rad)";
+
+      var elapsed = performance.now() - levelStartTime;
+      hudTimer.textContent = msToClock(elapsed);
+
+      var mapRevealed = updateHintUI();
+
+      renderScene();
+      if(mapRevealed) renderMinimap();
+
+      if(Math.floor(player.x)===maze.goalX && Math.floor(player.y)===maze.goalY){
+        state = "transitioning";
+        if(onlineActive){ onlineReachGoal(); } else { reachGoal(); }
+      }
+    }
+    if(onlineActive){
+      updateOnlineRoster();
+      onlineSyncTick(now, false);
+    }
+  }else if(state==="mp" && mpActive){
+    updateMP(dt);
+    renderMPFrame();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+/* ========================= 画面遷移 ========================= */
+document.getElementById("btn-start").addEventListener("click", function(){
+  sfxClick();
+  if(gameMode==="multi"){
+    startMPMatch();
+  }else{
+    totalTime = 0;
+    loadPalette();
+    if(!isChallenge){ runSeed = randomSeed(); }
+    startLevel(0);
+  }
+});
+document.getElementById("btn-next").addEventListener("click", function(){
+  sfxClick();
+  loadPalette();
+  startLevel(currentLevelIndex+1);
+});
+document.getElementById("btn-retry").addEventListener("click", function(){
+  sfxClick();
+  updateBestDisplay();
+  isChallenge = false;
+  challengeTargetMs = null;
+  updateChallengeBanner();
+  state = "start";
+  showScreen("start");
+});
+document.getElementById("btn-quit").addEventListener("click", function(){
+  sfxClick();
+  leaveOnlineRoom();
+  updateBestDisplay();
+  state = "start";
+  showScreen("start");
+});
+
+/* ========================= 挑戦状(共有リンク)を送る ========================= */
+var shareOverlay = document.getElementById("share-overlay");
+var shareUrlInput = document.getElementById("share-url");
+document.getElementById("btn-share").addEventListener("click", function(){
+  sfxClick();
+  var url = buildChallengeURL(runSeed, totalTime);
+  shareUrlInput.value = url;
+  show(shareOverlay);
+  shareUrlInput.focus();
+  shareUrlInput.select();
+});
+document.getElementById("share-copy").addEventListener("click", function(){
+  sfxClick();
+  var copyBtn = document.getElementById("share-copy");
+  function done(ok){
+    copyBtn.textContent = ok ? "✅ コピーしました！" : "📋 コピーする";
+    if(ok) setTimeout(function(){ copyBtn.textContent = "📋 コピーする"; }, 2000);
+  }
+  shareUrlInput.select();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(shareUrlInput.value).then(function(){ done(true); }).catch(function(){ done(false); });
+  }else{
+    try{ done(document.execCommand("copy")); }catch(e){ done(false); }
+  }
+});
+document.getElementById("share-close").addEventListener("click", function(){
+  sfxClick();
+  hide(shareOverlay);
+});
+
+parseChallengeFromURL();
+updateChallengeBanner();
+updateBestDisplay();
+loadPalette();
+requestAnimationFrame(loop);
+
+})();
+</script>
+
+</body>
+</html>
