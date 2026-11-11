@@ -11,6 +11,7 @@
     --ink: #2b2b2b;
     --sub: #777;
     --accent: #3a6ea5;
+    --hard: #b5532e;
     --ok: #2e9e5b;
     --ng: #d64545;
   }
@@ -29,18 +30,18 @@
   }
   #app {
     width: 100%;
-    max-width: 520px;
+    max-width: 560px;
     background: var(--card);
     border-radius: 20px;
     box-shadow: 0 6px 24px rgba(0,0,0,.08);
     padding: 24px 20px 28px;
     text-align: center;
-    min-height: 420px;
+    min-height: 440px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 18px;
   }
+  section { display: flex; flex-direction: column; gap: 18px; }
   h1 { margin: 0; font-size: 1.8rem; letter-spacing: .1em; }
   .desc { color: var(--sub); line-height: 1.8; font-size: .95rem; margin: 0; }
   .status {
@@ -53,20 +54,32 @@
     min-height: 7.2rem;
     display: flex; align-items: center; justify-content: center;
     word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  /* むずかしいモードの長文 */
+  .sentence.long {
+    font-size: clamp(1.05rem, 4.4vw, 1.35rem);
+    line-height: 2;
+    text-align: left;
+    justify-content: flex-start;
+    min-height: 10rem;
   }
   .question {
-    font-size: clamp(1.4rem, 6vw, 2rem);
+    font-size: clamp(1.3rem, 5.5vw, 1.8rem);
     min-height: 4rem;
     display: flex; align-items: center; justify-content: center;
     font-weight: bold;
   }
   .bar { height: 8px; background: #e6e2d8; border-radius: 4px; overflow: hidden; }
   .bar > div { height: 100%; width: 100%; background: var(--accent); }
+  .hard-mode .bar > div { background: var(--hard); }
   .choices { display: flex; flex-direction: column; gap: 12px; }
+  .modes { display: flex; gap: 12px; }
+  .modes button { flex: 1; }
   button {
     font: inherit;
-    font-size: 1.3rem;
-    padding: 16px;
+    font-size: 1.2rem;
+    padding: 16px 12px;
     border: 2px solid var(--accent);
     background: #fff;
     color: var(--accent);
@@ -76,11 +89,13 @@
   }
   button:active { transform: scale(.98); }
   button.primary { background: var(--accent); color: #fff; }
+  button.hard { background: var(--hard); border-color: var(--hard); color: #fff; }
   button.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
   button.ng { background: var(--ng); border-color: var(--ng); color: #fff; }
+  button.plain { border-color: #ccc; color: var(--sub); font-size: 1rem; padding: 12px; }
   .big { font-size: 3rem; font-weight: bold; color: var(--accent); margin: 0; }
   .small { color: var(--sub); font-size: .95rem; margin: 0; }
-  .recall { background: #f7f5ef; border-radius: 12px; padding: 12px; line-height: 1.8; }
+  .recall { background: #f7f5ef; border-radius: 12px; padding: 12px; line-height: 1.9; text-align: left; word-break: keep-all; overflow-wrap: anywhere; }
   .hidden { display: none !important; }
 </style>
 </head>
@@ -90,13 +105,16 @@
   <!-- スタート画面 -->
   <section id="screen-start">
     <h1>いっしゅん よみ</h1>
-    <p class="desc" style="margin:16px 0 20px">
+    <p class="desc">
       みじかい ぶんが いっしゅん だけ でます。<br>
       きえたあとの もんだいに こたえよう。<br>
       まちがえたら おしまい。れんぞく せいかいを きそおう。
     </p>
-    <p class="small" id="best-start" style="margin-bottom:16px"></p>
-    <button class="primary" id="btn-start">スタート</button>
+    <div class="modes">
+      <button class="primary" id="btn-normal">ふつう</button>
+      <button class="hard" id="btn-hard">むずかしい</button>
+    </div>
+    <p class="small" id="best-start"></p>
   </section>
 
   <!-- 表示フェーズ -->
@@ -108,18 +126,19 @@
 
   <!-- 出題フェーズ -->
   <section id="screen-ask" class="hidden">
-    <div class="status"><span id="ask-streak"></span><span></span></div>
+    <div class="status"><span id="ask-streak"></span><span id="ask-mode"></span></div>
     <div class="question" id="question"></div>
     <div class="choices" id="choices"></div>
   </section>
 
   <!-- 結果画面 -->
   <section id="screen-over" class="hidden">
-    <p class="small">れんぞく せいかい</p>
+    <p class="small" id="over-mode"></p>
     <p class="big" id="over-score"></p>
-    <p class="small" id="over-best" style="margin-bottom:14px"></p>
+    <p class="small" id="over-best"></p>
     <div class="recall" id="over-recall"></div>
-    <button class="primary" id="btn-retry" style="margin-top:18px; width:100%">もういちど</button>
+    <button class="primary" id="btn-retry">もういちど</button>
+    <button class="plain" id="btn-back">モードを えらぶ</button>
   </section>
 
 </div>
@@ -128,58 +147,291 @@
 (() => {
   "use strict";
 
-  // ===== 出題データ(ひらがな・分かち書き) =====
-  // 文: lead + " " + 語 + tail
-  const CATEGORIES = [
+  // =====================================================================
+  //  ★ 文章データ(ここを書きかえる)
+  //
+  //  ・上から書いた順に出ます。まちがえたら おしまい。最後までいけば クリア。
+  //  ・1つの文章に問題を いくつでも書けます。遊ぶたびに、その中から1問だけ出ます。
+  //  ・選択肢は「こたえ(a)」と「まちがい(wrong)2つ」の3つです。
+  //  ・wrong に正解と同じ言葉や重複を書いても、自動で取り除きます。
+  //  ・wrong を書かない(または足りない)ときは、type を書いておくと
+  //    同じ type の言葉(下の WORDS とほかの答え)から自動で補います。
+  //
+  //  書き方:
+  //  {
+  //    text: "ぶんしょう(ひらがな・わかちがき)",
+  //    questions: [
+  //      { q: "もんだいぶん", a: "こたえ", wrong: ["まちがい1", "まちがい2"] },
+  //    ],
+  //  },
+  // =====================================================================
+
+  const NORMAL_STORIES = [
     {
-      pool: ["あめ", "はれ", "くもり", "ゆき", "かぜ", "かみなり"],
-      slots: [
-        { lead: "きのうは",  tail: "でした。",   q: "きのうの てんきは?" },
-        { lead: "きょうは",  tail: "です。",     q: "きょうの てんきは?" },
-        { lead: "あしたは",  tail: "でしょう。", q: "あしたの てんきは?" },
+      text: "きのうは あめだった。きょうは くもりだ。",
+      questions: [
+        { q: "きのうの てんきは?", a: "あめ",   wrong: ["くもり", "はれ"] },
+        { q: "きょうの てんきは?", a: "くもり", wrong: ["あめ", "ゆき"] },
       ],
     },
     {
-      pool: ["ぱん", "ごはん", "らーめん", "うどん", "さかな", "たまご", "かれー", "やさい"],
-      slots: [
-        { lead: "あさは", tail: "を たべました。", q: "あさに たべたのは?" },
-        { lead: "ひるは", tail: "を たべました。", q: "ひるに たべたのは?" },
-        { lead: "よるは", tail: "を たべました。", q: "よるに たべたのは?" },
+      text: "あさに ぱんを たべました。ひるには うどんを たべました。",
+      questions: [
+        { q: "あさに たべたのは?", a: "ぱん",   wrong: ["うどん", "ごはん"] },
+        { q: "ひるに たべたのは?", a: "うどん", wrong: ["ぱん", "らーめん"] },
       ],
     },
     {
-      pool: ["いぬ", "ねこ", "うさぎ", "とり", "さる", "くま", "さかな", "かめ"],
-      slots: [
-        { lead: "こうえんで", tail: "を みました。", q: "こうえんで みたのは?" },
-        { lead: "うみで",     tail: "を みました。", q: "うみで みたのは?" },
-        { lead: "もりで",     tail: "を みました。", q: "もりで みたのは?" },
+      text: "こうえんで いぬを みました。そこに いぬは ぜんぶで 3びき いました。",
+      questions: [
+        { q: "こうえんで みたのは?",   a: "いぬ",     wrong: ["ねこ", "とり"] },
+        { q: "いぬは なんびき いた?", a: "3びき",    wrong: ["2ひき", "4ひき"] },
+        { q: "いぬを みた ばしょは?", a: "こうえん", wrong: ["うみ", "えき"] },
       ],
     },
     {
-      pool: ["がっこう", "えき", "こうえん", "うみ", "やま", "みせ", "びょういん", "としょかん"],
-      slots: [
-        { lead: "たろうは",   tail: "へ いきました。", q: "たろうが いったのは?" },
-        { lead: "はなこは",   tail: "へ いきました。", q: "はなこが いったのは?" },
-        { lead: "けんたは",   tail: "へ いきました。", q: "けんたが いったのは?" },
+      text: "おじいさんは やまへ しばかりに いきました。おばあさんも いきました。",
+      questions: [
+        { q: "おじいさんが いった ばしょは?",     a: "やま",       wrong: ["かわ", "うみ"] },
+        { q: "おじいさんは なにを しに いった?", a: "しばかり",   wrong: ["せんたく", "かいもの"] },
+        { q: "おじいさんの ほかに いったのは?",   a: "おばあさん", wrong: ["おかあさん", "まご"] },
       ],
     },
     {
-      pool: ["みず", "おちゃ", "ぎゅうにゅう", "こうちゃ", "じゅーす", "こーひー"],
-      slots: [
-        { lead: "あついひは", tail: "を のみました。", q: "あついひに のんだのは?" },
-        { lead: "さむいひは", tail: "を のみました。", q: "さむいひに のんだのは?" },
-        { lead: "ねるまえは", tail: "を のみました。", q: "ねるまえに のんだのは?" },
+      text: "きょうは あついので、おみずを たくさん のみましょう。",
+      questions: [
+        { q: "なにを のもうと いっている?", a: "おみず",   wrong: ["おちゃ", "じゅーす"] },
+        { q: "きょうは どんな ひ?",         a: "あつい ひ", wrong: ["さむい ひ", "すずしい ひ"] },
+        { q: "どのくらい のむ?",            a: "たくさん", wrong: ["すこしだけ", "のまない"] },
+      ],
+    },
+    {
+      text: "きのうは くさぬきを しました。あしたも くさぬきを します。",
+      questions: [
+        { q: "きのう した ことは?",     a: "くさぬき",       wrong: ["そうじ", "せんたく"] },
+        { q: "あした する ことは?",     a: "くさぬき",       wrong: ["みずやり", "そうじ"] },
+        { q: "くさぬきを する ひは?",   a: "きのうと あした", wrong: ["きのうと きょう", "きょうと あした"] },
+      ],
+    },
+    {
+      text: "とっとりけんの てんきは ゆきらしい。",
+      questions: [
+        { q: "とっとりけんの てんきは?",   a: "ゆき",         wrong: ["あめ", "はれ"] },
+        { q: "てんきの はなしを した ばしょは?", a: "とっとりけん", wrong: ["しまねけん", "おかやまけん"] },
+      ],
+    },
+    {
+      text: "おやつを かいに だがしやへ いった。やすかったので たくさん かえた。",
+      questions: [
+        { q: "なにを かいに いった?",     a: "おやつ",         wrong: ["おもちゃ", "ぶんぼうぐ"] },
+        { q: "いった おみせは?",          a: "だがしや",       wrong: ["すーぱー", "ぱんや"] },
+        { q: "たくさん かえた りゆうは?", a: "やすかったから", wrong: ["おかねが あったから", "せーるだったから"] },
+      ],
+    },
+    {
+      text: "きょうこそ かんらんしゃに のりたい。せんしゅうは かぜが つよくて とまっていた。",
+      questions: [
+        { q: "のりたい ものは?",           a: "かんらんしゃ",       wrong: ["じぇっとこーすたー", "めりーごーらんど"] },
+        { q: "とまっていた りゆうは?",     a: "かぜが つよかったから", wrong: ["あめが ふったから", "こしょうしたから"] },
+        { q: "とまっていたのは いつ?",     a: "せんしゅう",         wrong: ["きのう", "せんげつ"] },
+      ],
+    },
+    {
+      text: "かがみと にらめっこして かてた ためしがない。",
+      questions: [
+        { q: "なにと にらめっこした?", a: "かがみ",           wrong: ["いもうと", "ねこ"] },
+        { q: "にらめっこの けっかは?", a: "いちども かてない", wrong: ["いつも かつ", "ときどき かつ"] },
+      ],
+    },
+    {
+      text: "ひこうきに のって あぜるばいじゃんに いこうよ。",
+      questions: [
+        { q: "いこうと いっている くには?", a: "あぜるばいじゃん", wrong: ["かざふすたん", "うずべきすたん"] },
+        { q: "なにに のって いく?",         a: "ひこうき",         wrong: ["ふね", "しんかんせん"] },
+      ],
+    },
+    {
+      text: "かいがんで かいを ひろった。おおきな かいだった。",
+      questions: [
+        { q: "ひろった ものは?",   a: "かい",       wrong: ["いし", "かに"] },
+        { q: "ひろった ばしょは?", a: "かいがん",   wrong: ["かわら", "こうえん"] },
+        { q: "どんな かいだった?", a: "おおきな かい", wrong: ["ちいさな かい", "しろい かい"] },
+      ],
+    },
+    {
+      text: "「ありがとう」といわれて 「こちらこそ ありがとう」とかえした。",
+      questions: [
+        { q: "なんと いわれた?", a: "ありがとう",           wrong: ["ごめんね", "おはよう"] },
+        { q: "なんと かえした?", a: "こちらこそ ありがとう", wrong: ["どういたしまして", "ありがとう"] },
+      ],
+    },
+    {
+      text: "こくごの じゅぎょうで やった はなしを いまでも おぼえていたかったのに。",
+      questions: [
+        { q: "なんの じゅぎょうの はなし?", a: "こくご",         wrong: ["さんすう", "おんがく"] },
+        { q: "その はなしを いまは?",       a: "おぼえていない", wrong: ["よく おぼえている", "まだ よんでいない"] },
+      ],
+    },
+    {
+      text: "えほんを 3さつ よんだ。きのうは 4さつ よんだ。",
+      questions: [
+        { q: "よんだ ものは?",                a: "えほん", wrong: ["まんが", "ずかん"] },
+        { q: "きのう よんだのは なんさつ?",   a: "4さつ",  wrong: ["3さつ", "5さつ"] },
+        { q: "あわせて なんさつ よんだ?",     a: "7さつ",  wrong: ["6さつ", "8さつ"] },
+      ],
+    },
+    {
+      text: "りんごを 5こ かった。5こ すべて たべてしまった。",
+      questions: [
+        { q: "かった ものは?",      a: "りんご", wrong: ["みかん", "ばなな"] },
+        { q: "なんこ かった?",      a: "5こ",    wrong: ["3こ", "4こ"] },
+        { q: "のこりは なんこ?",    a: "0こ",    wrong: ["1こ", "5こ"] },
+      ],
+    },
+    {
+      text: "きょうは あついので かきごおりを つくった。",
+      questions: [
+        { q: "つくった ものは?",  a: "かきごおり", wrong: ["あいす", "じゅーす"] },
+        { q: "なぜ つくった?",    a: "あついから", wrong: ["さむいから", "ひまだったから"] },
       ],
     },
   ];
 
-  // ===== 難易度 =====
-  const BASE_TIME = 3500;     // 2つの情報の最初の表示時間(ms)
-  const SHRINK = 0.93;        // 正解ごとの倍率
-  const MIN_TIME = 700;       // 2つの情報の下限(ms)
-  const THREE_FACTS_FROM = 8; // この連続正解数から3つの情報になる
+  const HARD_STORIES = [
+    {
+      text: "きのうは あめが ふったので、ごぜんに かさを さして としょかんに でかけました。ごごからは はれたので、こうえんで あそんで かえりました。",
+      questions: [
+        { q: "ごぜんに でかけた ばしょは?", a: "としょかん",       wrong: ["こうえん", "えき"] },
+        { q: "ごごに いった ばしょは?",     a: "こうえん",         wrong: ["としょかん", "うみ"] },
+        { q: "もっていった ものは?",        a: "かさ",             wrong: ["ながぐつ", "ぼうし"] },
+        { q: "ごごの てんきは?",            a: "はれ",             wrong: ["あめ", "くもり"] },
+        { q: "こうえんで なにを した?",     a: "あそんだ",         wrong: ["さんぽした", "ほんを よんだ"] },
+        { q: "なぜ かさを さしたの?",       a: "あめが ふったから", wrong: ["ひざしが つよかったから", "ゆきが ふったから"] },
+      ],
+    },
+    {
+      text: "どようびは おかあさんと すーぱーへ かいものに いきました。りんごを かう つもりでしたが、うりきれだったので、かわりに みかんを かいました。かえりに かふぇで じゅーすを のみました。",
+      questions: [
+        { q: "だれと いった?",           a: "おかあさん", wrong: ["おとうさん", "ともだち"] },
+        { q: "かう つもりだった ものは?", a: "りんご",     wrong: ["みかん", "ばなな"] },
+        { q: "かわりに かった ものは?",   a: "みかん",     wrong: ["りんご", "いちご"] },
+        { q: "かえりに のんだ ものは?",   a: "じゅーす",   wrong: ["おちゃ", "こーひー"] },
+        { q: "なぜ みかんを かったの?",   a: "りんごが うりきれだったから", wrong: ["みかんが うりきれだったから", "みかんが やすかったから"] },
+      ],
+    },
+    {
+      text: "げつようびは ねぼうしたので、はしって がっこうへ いきました。じゅぎょうでは おんがくが いちばん たのしかったです。ほうかごは けんたと なわとびを して かえりました。",
+      questions: [
+        { q: "どうやって がっこうへ いった?",       a: "はしって",       wrong: ["あるいて", "ばすで"] },
+        { q: "なぜ はしって いったの?",             a: "ねぼうしたから", wrong: ["はやく おきたから", "あめが ふっていたから"] },
+        { q: "いちばん たのしかった じゅぎょうは?", a: "おんがく",       wrong: ["たいいく", "ずこう"] },
+        { q: "ほうかごに あそんだ ひとは?",         a: "けんた",         wrong: ["たろう", "はなこ"] },
+        { q: "ほうかごに した あそびは?",           a: "なわとび",       wrong: ["おにごっこ", "さっかー"] },
+      ],
+    },
+    {
+      text: "じてんしゃを かうために あるいて おみせに むかった。さいふを わすれて はしって かえった。",
+      questions: [
+        { q: "かいに いった ものは?",     a: "じてんしゃ",           wrong: ["さいふ", "くつ"] },
+        { q: "おみせへは どうやって いった?", a: "あるいて",         wrong: ["はしって", "ばすで"] },
+        { q: "どうやって かえった?",      a: "はしって",             wrong: ["あるいて", "じてんしゃで"] },
+        { q: "わすれた ものは?",          a: "さいふ",               wrong: ["かぎ", "けいたい"] },
+        { q: "なぜ かえった?",            a: "さいふを わすれたから", wrong: ["うりきれだったから", "おみせが しまっていたから"] },
+      ],
+    },
+    {
+      text: "こうしょうな みぶんの ひとに おあいすることが できた。みつぎものを もっていったが ことわられてしまった。",
+      questions: [
+        { q: "あった ひとは?",                 a: "こうしょうな みぶんの ひと", wrong: ["ゆうめいな かしゅ", "がっこうの せんせい"] },
+        { q: "もっていった ものは?",           a: "みつぎもの",               wrong: ["てがみ", "はなたば"] },
+        { q: "もっていった ものは どうなった?", a: "ことわられた",             wrong: ["よろこばれた", "わすれてきた"] },
+      ],
+    },
+    {
+      text: "ねんまつに ねんがじょうを たくさん かいたので、しゅうちゅうりょくが かくだんに あがった。",
+      questions: [
+        { q: "かいた ものは?",   a: "ねんがじょう",               wrong: ["にっき", "しゅくだい"] },
+        { q: "いつ かいた?",     a: "ねんまつ",                   wrong: ["ねんし", "なつやすみ"] },
+        { q: "あがった ものは?", a: "しゅうちゅうりょく",         wrong: ["きおくりょく", "たいりょく"] },
+        { q: "なぜ あがった?",   a: "ねんがじょうを たくさん かいたから", wrong: ["はやく ねたから", "ほんを たくさん よんだから"] },
+      ],
+    },
+    {
+      text: "おみそしるに いれる ぐざいは すくないはだが、ついつい たくさん いれてしまう。",
+      questions: [
+        { q: "なんの はなし?",             a: "おみそしる",           wrong: ["かれー", "なべ"] },
+        { q: "ほんとうは どれが すき?",    a: "ぐざいが すくないほう", wrong: ["ぐざいが おおいほう", "ぐざいが ないほう"] },
+        { q: "じっさいは どうしてしまう?", a: "たくさん いれてしまう", wrong: ["すこししか いれない", "いれわすれてしまう"] },
+      ],
+    },
+    {
+      text: "たいじゅうけいに のってみると いがいと かるかったので、すこし たくさん たべた。",
+      questions: [
+        { q: "のった ものは?",     a: "たいじゅうけい",     wrong: ["じてんしゃ", "でんしゃ"] },
+        { q: "けっかは?",          a: "かるかった",         wrong: ["おもかった", "かわらなかった"] },
+        { q: "そのあと どうした?", a: "すこし たくさん たべた", wrong: ["ごはんを ぬいた", "はしりに いった"] },
+      ],
+    },
+    {
+      text: "たいちょうが わるくて ねこんだ。びょういんに いこうか まよったけど ねんのために いった。",
+      questions: [
+        { q: "なぜ ねこんだ?",       a: "たいちょうが わるかったから", wrong: ["つかれていたから", "ねぶそくだったから"] },
+        { q: "なにを まよった?",     a: "びょういんに いくか",         wrong: ["がっこうを やすむか", "くすりを のむか"] },
+        { q: "けっきょく どうした?", a: "びょういんに いった",         wrong: ["いえで ねていた", "くすりを のんだ"] },
+        { q: "なぜ いった?",         a: "ねんのため",                 wrong: ["いたかったから", "ともだちに いわれたから"] },
+      ],
+    },
+    {
+      text: "あのひとは だいいちいんしょうが わるかったが、どうも ひとみしりで はなしてみると いいひとだった。",
+      questions: [
+        { q: "だいいちいんしょうは?",   a: "わるかった",     wrong: ["よかった", "おぼえていない"] },
+        { q: "あのひとの せいかくは?", a: "ひとみしり",     wrong: ["おこりっぽい", "いじわる"] },
+        { q: "はなしてみると?",         a: "いいひとだった", wrong: ["こわいひとだった", "つめたいひとだった"] },
+      ],
+    },
+    {
+      text: "しはんの てんねんすいを ひとつ かった。ちょちくしておこうと おもったが、ついつい つかってしまった。",
+      questions: [
+        { q: "かった ものは?",            a: "てんねんすい",   wrong: ["じゅーす", "おちゃ"] },
+        { q: "いくつ かった?",            a: "ひとつ",         wrong: ["ふたつ", "みっつ"] },
+        { q: "どうしようと おもった?",    a: "ちょちくする",   wrong: ["すぐ のむ", "ひとに あげる"] },
+        { q: "けっきょく どうした?",      a: "つかってしまった", wrong: ["とっておいた", "ひとに あげた"] },
+      ],
+    },
+    {
+      text: "ことしの えとの どうぶつを いつも わすれてしまうので、けいたいの まちうけがめんを そのどうぶつにした。",
+      questions: [
+        { q: "いつも わすれる ものは?", a: "ことしの えとの どうぶつ", wrong: ["ともだちの たんじょうび", "でんわばんごう"] },
+        { q: "かえた ものは?",          a: "まちうけがめん",           wrong: ["ちゃくしんおん", "けいたいの けーす"] },
+        { q: "なぜ かえた?",            a: "わすれてしまうから",       wrong: ["かわいいから", "ともだちに すすめられたから"] },
+      ],
+    },
+  ];
 
-  // ===== ユーティリティ =====
+  // まちがいの選択肢の「予備の言葉」。type ごとに足していけます。
+  const WORDS = {
+    "てんき":     ["あめ", "はれ", "くもり", "ゆき", "かぜ", "かみなり"],
+    "たべもの":   ["ぱん", "ごはん", "らーめん", "うどん", "さかな", "たまご", "かれー", "りんご", "みかん", "いちご", "ばなな"],
+    "どうぶつ":   ["いぬ", "ねこ", "うさぎ", "とり", "さる", "くま", "かめ"],
+    "ばしょ":     ["がっこう", "えき", "こうえん", "うみ", "やま", "みせ", "びょういん", "としょかん", "ほんや"],
+    "のみもの":   ["みず", "おちゃ", "ぎゅうにゅう", "こうちゃ", "じゅーす", "こーひー"],
+    "もの":       ["かさ", "ながぐつ", "こーと", "てぶくろ", "ぼうし", "まふらー"],
+    "ひと":       ["おかあさん", "おとうさん", "ともだち", "おばあちゃん", "いもうと", "たろう", "はなこ", "けんた", "ゆい"],
+    "こうどう":   ["あそんだ", "さんぽした", "はしった", "えを かいた", "ぼーるを なげた"],
+    "りゆう":     ["あめが ふったから", "ゆきが ふったから", "かぜが つよかったから", "はれていたから", "ねぼうしたから", "はやく おきたから"],
+    "じゅぎょう": ["さんすう", "こくご", "おんがく", "たいいく", "りか", "ずこう"],
+    "あそび":     ["さっかー", "おにごっこ", "かくれんぼ", "なわとび", "どっじぼーる"],
+    "いきかた":   ["あるいて", "はしって", "ばすで", "じてんしゃで"],
+  };
+
+  // ===== 表示時間(仮の値。遊びながら調整) =====
+  //  表示時間 = 文字数 × PER_CHAR × SHRINK^(連続正解数)  ただし 文字数 × MIN_PER_CHAR より短くしない
+  const NORMAL = { PER_CHAR: 140, SHRINK: 0.93, MIN_PER_CHAR: 30 };
+  const HARD   = { PER_CHAR: 115, SHRINK: 0.95, MIN_PER_CHAR: 45 };
+
+  // =====================================================================
+  //  ここから下はゲームの仕組み
+  // =====================================================================
   const $ = (id) => document.getElementById(id);
   const shuffle = (arr) => {
     const a = arr.slice();
@@ -189,68 +441,87 @@
     }
     return a;
   };
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  const MODES = {
+    normal: { name: "ふつう",     stories: NORMAL_STORIES, timing: NORMAL, key: "ippun-yomi-best" },
+    hard:   { name: "むずかしい", stories: HARD_STORIES,   timing: HARD,   key: "ippun-yomi-best-hard" },
+  };
+
+  // type ごとの候補 = WORDS + 全文章の答え
+  const POOL = {};
+  const addPool = (type, w) => {
+    if (!POOL[type]) POOL[type] = [];
+    if (!POOL[type].includes(w)) POOL[type].push(w);
+  };
+  Object.keys(WORDS).forEach((t) => WORDS[t].forEach((w) => addPool(t, w)));
+  [...NORMAL_STORIES, ...HARD_STORIES].forEach((s) =>
+    s.questions.forEach((q) => { if (q.type) addPool(q.type, q.a); }));
+
+  function buildChoices(story, item) {
+    const norm = (w) => String(w).replace(/[\s\u3000]+/g, " ").trim();
+    const ans = norm(item.a);
+    item.a = ans;
+    const wrong = [];
+    const add = (w) => { w = norm(w); if (w && w !== ans && !wrong.includes(w)) wrong.push(w); };
+    (item.wrong || []).forEach(add);
+    if (wrong.length < 2) {
+      const cand = (POOL[item.type] || []).filter((w) => norm(w) !== ans);
+      shuffle(cand.filter((w) => story.text.includes(w))).forEach(add);
+      shuffle(cand.filter((w) => !story.text.includes(w))).forEach(add);
+    }
+    if (wrong.length < 2) {
+      console.warn("まちがいの選択肢が足りません。wrong か type を確認してください:", item);
+    }
+    return shuffle([ans, ...wrong.slice(0, 2)]);
+  }
+
+  function makeRound(story, streak, timing) {
+    const item = pick(story.questions);
+    const len = story.text.replace(/\s/g, "").length;
+    const time = Math.max(len * timing.MIN_PER_CHAR, len * timing.PER_CHAR * Math.pow(timing.SHRINK, streak));
+    return {
+      text: story.text,
+      question: item.q,
+      correct: item.a,
+      choices: buildChoices(story, item),
+      time: Math.round(time),
+    };
+  }
+
+  // ベストスコア(保存できない環境でも動くように)
+  const loadBest = (k) => { try { return Number(localStorage.getItem(k)) || 0; } catch (e) { return 0; } };
+  const saveBest = (k, n) => { try { localStorage.setItem(k, String(n)); } catch (e) {} };
+
+  // ===== 画面 =====
   const screens = ["start", "show", "ask", "over"];
   const showScreen = (name) => {
     screens.forEach((s) => $("screen-" + s).classList.toggle("hidden", s !== name));
   };
 
-  // ベストスコア(保存できない環境でも動くように)
-  const KEY = "ippun-yomi-best";
-  const loadBest = () => { try { return Number(localStorage.getItem(KEY)) || 0; } catch (e) { return 0; } };
-  const saveBest = (n) => { try { localStorage.setItem(KEY, String(n)); } catch (e) {} };
-
   // ===== ゲーム状態 =====
-  let streak = 0;
-  let best = loadBest();
-  let current = null;       // 出題中の問題
+  let mode = "normal";
+  let streak = 0;   // 連続正解数 = 次に出す文章の番号
+  let current = null;
   let timer = null;
-  let locked = true;        // 回答の受付可否
+  let locked = true;
 
-  // ===== 問題の生成 =====
-  function makeQuestion() {
-    const n = streak >= THREE_FACTS_FROM ? 3 : 2;
-    const cat = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
-    // 使う枠を順番を保って n 個
-    const slots = shuffle(cat.slots).slice(0, n)
-      .sort((a, b) => cat.slots.indexOf(a) - cat.slots.indexOf(b));
-    // 語は重ならないように
-    const vals = shuffle(cat.pool).slice(0, n);
-    const parts = slots.map((s, i) => s.lead + " " + vals[i] + s.tail);
-
-    const target = Math.floor(Math.random() * n);
-    const correct = vals[target];
-
-    // 紛らわしい選択肢: 文に出てきた他の語を優先し、足りなければ同じ分類の語
-    const others = vals.filter((_, i) => i !== target);
-    const rest = shuffle(cat.pool.filter((w) => !vals.includes(w)));
-    const wrongs = shuffle(others).concat(rest).slice(0, 2);
-
-    const time = Math.max(MIN_TIME, BASE_TIME * Math.pow(SHRINK, streak)) * (n / 2);
-
-    return {
-      sentence: parts.join("\n"),
-      parts,
-      question: slots[target].q,
-      correct,
-      choices: shuffle([correct, ...wrongs]),
-      time: Math.round(time),
-    };
-  }
-
-  // ===== 画面の流れ =====
   function startRound() {
-    current = makeQuestion();
+    const m = MODES[mode];
+    if (streak >= m.stories.length) { finish(true); return; }
+    current = makeRound(m.stories[streak], streak, m.timing);
     locked = true;
 
-    $("show-streak").textContent = "れんぞく " + streak;
+    $("show-streak").textContent = "れんぞく " + streak + " / " + m.stories.length;
     $("show-time").textContent = (current.time / 1000).toFixed(1) + " びょう";
-    $("sentence").innerHTML = current.parts.map((p) => "<div>" + p + "</div>").join("");
+    const s = $("sentence");
+    s.textContent = current.text;
+    s.classList.toggle("long", mode === "hard");
 
     const fill = $("bar-fill");
     fill.style.transition = "none";
     fill.style.width = "100%";
     showScreen("show");
-    // 次のフレームでバーを縮め始める
     requestAnimationFrame(() => requestAnimationFrame(() => {
       fill.style.transition = "width " + current.time + "ms linear";
       fill.style.width = "0%";
@@ -262,6 +533,7 @@
 
   function showQuestion() {
     $("ask-streak").textContent = "れんぞく " + streak;
+    $("ask-mode").textContent = MODES[mode].name;
     $("question").textContent = current.question;
     const box = $("choices");
     box.innerHTML = "";
@@ -285,33 +557,57 @@
       timer = setTimeout(startRound, 450);
     } else {
       btn.classList.add("ng");
-      // 正解も見せる
       [...$("choices").children].forEach((c) => {
         if (c.dataset.word === current.correct) c.classList.add("ok");
       });
-      timer = setTimeout(gameOver, 900);
+      timer = setTimeout(() => finish(false), 900);
     }
   }
 
-  function gameOver() {
-    if (streak > best) { best = streak; saveBest(best); }
+  function finish(cleared) {
+    const m = MODES[mode];
+    let best = loadBest(m.key);
+    if (streak > best) { best = streak; saveBest(m.key, best); }
+    $("over-mode").textContent = m.name + (cleared ? " ・ ぜんぶ クリア!" : " ・ れんぞく せいかい");
     $("over-score").textContent = streak;
     $("over-best").textContent = "ベスト " + best;
-    $("over-recall").innerHTML =
-      current.parts.map((p) => "<div>" + p + "</div>").join("") +
-      "<div style='margin-top:8px;color:#777'>" + current.question +
-      " → <b style='color:#2e9e5b'>" + current.correct + "</b></div>";
+
+    const r = $("over-recall");
+    r.innerHTML = "";
+    r.classList.toggle("hidden", cleared);
+    if (!cleared) {
+      const t = document.createElement("div");
+      t.textContent = current.text;
+      const q = document.createElement("div");
+      q.style.cssText = "margin-top:8px;color:#777";
+      q.textContent = current.question + " → ";
+      const a = document.createElement("b");
+      a.style.color = "#2e9e5b";
+      a.textContent = current.correct;
+      q.appendChild(a);
+      r.append(t, q);
+    }
     showScreen("over");
   }
 
-  function newGame() {
+  function newGame(m) {
+    mode = m;
     streak = 0;
+    document.body.classList.toggle("hard-mode", mode === "hard");
     startRound();
   }
 
+  function showStart() {
+    const bn = loadBest(MODES.normal.key), bh = loadBest(MODES.hard.key);
+    $("best-start").textContent = "ベスト  ふつう " + bn + "  /  むずかしい " + bh;
+    showScreen("start");
+  }
+
   // ===== 入力 =====
-  $("btn-start").addEventListener("click", newGame);
-  $("btn-retry").addEventListener("click", newGame);
+  $("btn-normal").addEventListener("click", () => newGame("normal"));
+  $("btn-hard").addEventListener("click", () => newGame("hard"));
+  $("btn-retry").addEventListener("click", () => newGame(mode));
+  $("btn-back").addEventListener("click", showStart);
   document.addEventListener("keydown", (e) => {
     if (locked) return;
     const idx = ["1", "2", "3"].indexOf(e.key);
@@ -321,9 +617,7 @@
     }
   });
 
-  // 初期表示
-  $("best-start").textContent = best ? "ベスト " + best : "";
-  showScreen("start");
+  showStart();
 })();
 </script>
 </body>
