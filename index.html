@@ -8,12 +8,18 @@
 <style>
   :root {
     --bg: #ffffff;
-    --bg-soft: #ffffff;
+    --bg-soft: #f6f6f6;
     --fg: #161616;
     --fg-soft: #666666;
-    --accent: #c8102e;
-    --accent-yellow: #f2b705;
-    --border: #1a1a1a;
+    --accent: #c8102e;          /* 三角形の色のひとつ(赤)。文字やボタンにも使用 */
+    --accent-yellow: #f2b705;  /* 三角形の色のひとつ(黄) */
+    --border: #e2e2e2;
+    --tile: 240px;         /* 三角形の大きさの もと(三角形の中心から角まで = この半分 − --tile-gap) */
+    --tile-dark: #333333;  /* 三角形の色のひとつ(濃い灰色) */
+    --tile-light: #ffffff; /* タイルの白 */
+    --tile-gap: 8px;        /* 三角形どうしの いちばん狭いすき間は この2倍になる */
+    --tile-fade-start: 70%; /* ここより左はタイルなし(白) */
+    --tile-full-start: 95%; /* ここより右はタイルをそのままの濃さで表示(ここから左へ薄くなり始める) */
   }
 
   @media (prefers-color-scheme: dark) {
@@ -34,127 +40,348 @@
     box-sizing: border-box;
   }
 
-  html, body {
+  html {
+    scroll-behavior: smooth;
+    background: var(--tile-light);
+  }
+
+  /* 背景の三角形の模様(下の JavaScript で描く)。画面に固定して、スクロールしても動かない */
+  #bg-tiles {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+  }
+
+  #bg-tiles svg {
+    display: block;
+    width: 100%;
     height: 100%;
   }
 
+  /* 三角形の上に重ねる白いグラデーション。左側は白で、右に行くほど模様が濃く見える */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(to right, var(--tile-light) var(--tile-fade-start), transparent var(--tile-full-start));
+  }
+
   body {
-    background: var(--bg);
     color: var(--fg);
     font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     line-height: 1.7;
+    min-height: 100vh;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    flex-direction: column;
   }
 
-  .card {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* 中身の横幅をそろえる箱 */
+  .container {
     width: 100%;
-    max-width: 560px;
-    background: var(--bg-soft);
-    border: 2px solid var(--border);
-    border-radius: 16px;
-    padding: 48px 36px;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 32px;
   }
 
-  .stripe {
-    display: flex;
-    height: 4px;
-    width: 64px;
-    margin-top: 14px;
-    border-radius: 2px;
-    overflow: hidden;
+  /* ===== トップの大きい見出し ===== */
+  .hero {
+    padding: 96px 0 80px;
   }
 
-  .stripe span {
-    flex: 1;
-  }
-
-  .stripe span:nth-child(1) { background: var(--fg); }
-  .stripe span:nth-child(2) { background: var(--accent); }
-  .stripe span:nth-child(3) { background: var(--accent-yellow); }
-
-  .logo {
-    font-size: 28px;
+  .hero h1 {
+    font-size: 48px;
     font-weight: 700;
+    line-height: 1.2;
     letter-spacing: 0.02em;
-    color: var(--fg);
   }
 
-  .logo span {
+  .hero h1 span {
     color: var(--accent);
   }
 
-  .tagline {
-    margin-top: 6px;
+  .hero .tagline {
+    margin-top: 20px;
     color: var(--fg-soft);
-    font-size: 14px;
+    font-size: 16px;
+  }
+
+  /* ===== 各セクション ===== */
+  main {
+    flex: 1;
   }
 
   .section {
-    margin-top: 32px;
+    padding: 56px 0;
+    position: relative;
+  }
+
+  /* 項目の間とフッターの上の横線。左から右へだんだん消えて、画面の半分で完全に消える */
+  .section::before,
+  footer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50%;   /* 線が完全に消える位置(画面の左からの割合) */
+    height: 1px;
+    background: linear-gradient(to right, var(--border), transparent);
   }
 
   .section h2 {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--fg-soft);
-    margin-bottom: 8px;
+    margin-bottom: 12px;
   }
 
   .section p {
-    font-size: 16px;
-    color: var(--fg);
+    font-size: 18px;
   }
 
-  .section a {
+  .section a.link {
     color: var(--accent);
-    text-decoration: none;
   }
 
-  .section a:hover {
+  .section a.link:hover {
     text-decoration: underline;
   }
 
-  .divider {
-    height: 1px;
-    background: var(--border);
-    margin: 32px 0;
+  /* デモのボタン */
+  .button {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 12px 28px;
+    background: var(--accent);
+    color: #ffffff;
+    border-radius: 999px;
+    font-size: 16px;
+    font-weight: 600;
   }
 
+  .button:hover {
+    opacity: 0.85;
+  }
+
+  /* ===== フッター ===== */
   footer {
+    position: relative;
     color: var(--fg-soft);
     font-size: 13px;
+    padding: 24px 0;
+  }
+
+  /* ===== スマホ(画面がせまいとき) ===== */
+  @media (max-width: 640px) {
+    .container {
+      padding: 0 20px;
+    }
+
+    .hero {
+      padding: 56px 0 48px;
+    }
+
+    .hero h1 {
+      font-size: 34px;
+    }
+
+    .section {
+      padding: 40px 0;
+    }
+
+    .section p {
+      font-size: 16px;
+    }
   }
 </style>
 </head>
 <body>
-  <main class="card">
-    <div class="logo">Tri<span>Geranos</span></div>
-    <div class="tagline">トリゲラノス</div>
-    <div class="stripe"><span></span><span></span><span></span></div>
 
-    <div class="section">
-      <h2>事業内容</h2>
-      <p>スマートフォン向けゲームアプリの企画・開発・運営</p>
-    </div>
+  <!-- 背景の三角形の模様(JavaScript で中身を描く) -->
+  <div id="bg-tiles"></div>
 
-    <div class="section">
-      <h2>お問い合わせ</h2>
-      <p><a href="mailto:trigeranos@gmail.com">trigeranos@gmail.com</a></p>
-    </div>
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1>Tri<span>Geranos</span></h1>
+        <p class="tagline">トリゲラノス</p>
+      </div>
+    </section>
 
-    <div class="section">
-      <h2>デモ</h2>
-      <p><a href="game.html">ミニゲーム</a></p>
-    </div>
+    <section class="section" id="business">
+      <div class="container">
+        <h2>事業内容</h2>
+        <p>スマートフォン向けゲームアプリの企画・開発・運営</p>
+      </div>
+    </section>
 
-    <div class="divider"></div>
+    <section class="section" id="demo">
+      <div class="container">
+        <a class="button" href="game.html">ミニゲームで あそぶ</a>
+      </div>
+    </section>
 
-    <footer>&copy; 2026 TriGeranos</footer>
+    <section class="section" id="contact">
+      <div class="container">
+        <h2>お問い合わせ</h2>
+        <p><a class="link" href="mailto:trigeranos@gmail.com">trigeranos@gmail.com</a></p>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <div class="container">&copy; 2026 TriGeranos</div>
+  </footer>
+
+
+<script>
+  // ===== 背景の三角形の模様 =====
+  // ・マスを画面の右上からならべ、各マスに三角形を1つ置く
+  // ・角度(45度ずつの8方向)はマスごとにバラバラ。ただし毎回同じ並びになる(固定)
+  // ・三角形の色は、右上と右下が赤、上から2番目の左側が黄、ほかは黒(colorOf で決める)
+  // ・大きさは :root の --tile / --tile-gap、色は --tile-dark / --accent / --accent-yellow で変えられる
+  (() => {
+    const box = document.getElementById("bg-tiles");
+    const NS = "http://www.w3.org/2000/svg";
+
+    // マスの場所(右から何列目・上から何段目)から、三角形の角度(45度ずつ・8方向)を決める
+    // 同じ場所なら毎回同じ角度になる(固定のバラバラ)
+    // SEED の数字を変えると、別のバラバラな並びになる
+    const SEED = 7;
+    function angle(col, row) {
+      let h = (col * 374761393 + row * 668265263 + SEED * 2246822519) >>> 0;
+      h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+      h = (h ^ (h >>> 16)) >>> 0;
+      return (h % 8) * 45 * Math.PI / 180;    // 45度ずつ(8方向)のどれか
+    }
+
+    // マスの場所から、三角形の色を決める
+    // col = 右から何列目(0が右端)、row = 上から何段目(0が一番上)、lastRow = 画面の一番下の段
+    function colorOf(col, row, lastRow) {
+      if (col === 0 && row === 0)       return "var(--accent)";        // 右上:赤
+      if (col === 0 && row === lastRow) return "var(--accent)";        // 右下:赤
+      if (col === 1 && row === 1)       return "var(--accent-yellow)"; // 上から2番目の左側:黄
+      return "var(--tile-dark)";                                       // それ以外:黒
+    }
+
+    // 1つのマス(左上が x, y、1辺が size)の中に、角度 rad だけ回した正三角形の頂点を作る
+    // 回したあとの三角形の「外わく(上下左右のはし)」がマスの真ん中にくるように置く
+    // → どの向きでも、三角形のはしからマスのはしまでの余白が上下・左右でそろう
+    function triangle(x, y, size, r, rad) {
+      const cx = x + size / 2, cy = y + size / 2;   // マスの中心
+      const pts = [];
+      for (let k = 0; k < 3; k++) {
+        const t = rad + k * (Math.PI * 2 / 3);       // 120度ずつ
+        pts.push([r * Math.sin(t), -r * Math.cos(t)]);
+      }
+      // 外わくの中心を求めて、それがマスの中心にくるようにずらす
+      const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+      const mx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const my = (Math.min(...ys) + Math.max(...ys)) / 2;
+      return pts.map(([px, py]) => [cx + px - mx, cy + py - my]);
+    }
+
+    // ===== 2つの三角形のあいだの、いちばん近いところの距離 =====
+    // 点 p と線分 a-b の距離
+    function pointSeg(p, a, b) {
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy);
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+    }
+    // 2つの三角形が重なっているか(重なっていれば true)
+    function overlap(A, B) {
+      for (const P of [A, B]) {
+        for (let i = 0; i < 3; i++) {
+          const a = P[i], b = P[(i + 1) % 3];
+          const nx = b[1] - a[1], ny = a[0] - b[0];
+          const pa = A.map((q) => q[0] * nx + q[1] * ny), pb = B.map((q) => q[0] * nx + q[1] * ny);
+          if (Math.max(...pa) < Math.min(...pb) || Math.max(...pb) < Math.min(...pa)) return false;
+        }
+      }
+      return true;
+    }
+    function distance(A, B) {
+      if (overlap(A, B)) return 0;
+      let d = Infinity;
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          d = Math.min(d, pointSeg(A[i], B[j], B[(j + 1) % 3]), pointSeg(B[i], A[j], A[(j + 1) % 3]));
+        }
+      }
+      return d;
+    }
+
+    // 三角形どうしの いちばん狭いすき間が minGap 以上になる、いちばん小さいマスの間隔を探す
+    // (三角形の大きさと向きはそのままで、できるだけ詰める)
+    function findPitch(r, minGap, cols, rows) {
+      const ok = (pitch) => {
+        const tri = (c, rw) => triangle(-(c + 1) * pitch, rw * pitch, pitch, r, angle(c, rw));
+        for (let c = 0; c < cols; c++) {
+          for (let rw = 0; rw < rows; rw++) {
+            const A = tri(c, rw);
+            // となり(右・下・ななめ2つ)とだけ比べればよい
+            for (const [dc, dr] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
+              const c2 = c + dc, r2 = rw + dr;
+              if (c2 >= cols || r2 < 0 || r2 >= rows) continue;
+              if (distance(A, tri(c2, r2)) < minGap) return false;
+            }
+          }
+        }
+        return true;
+      };
+      let lo = r, hi = r * 2 + minGap * 2;  // この間で探す
+      for (let i = 0; i < 25; i++) {
+        const mid = (lo + hi) / 2;
+        if (ok(mid)) hi = mid; else lo = mid;
+      }
+      return hi;
+    }
+
+    function draw() {
+      const css = getComputedStyle(document.documentElement);
+      const size = parseFloat(css.getPropertyValue("--tile")) || 240;
+      const gap = parseFloat(css.getPropertyValue("--tile-gap")) || 0;
+      const r = size / 2 - gap;             // 三角形の中心から角までの長さ(三角形の大きさ)
+      const minGap = gap * 2;               // 三角形どうしの いちばん狭いすき間
+
+      const W = window.innerWidth, H = window.innerHeight;
+      // 画面に入る分のマスで、詰められる間隔を計算する
+      const maxCols = Math.ceil(W / r) + 1, maxRows = Math.ceil(H / r) + 1;
+      const pitch = findPitch(r, minGap, maxCols, maxRows);
+      const cols = Math.ceil(W / pitch) + 1, rows = Math.ceil(H / pitch) + 1;
+      const lastRow = Math.floor((H - 1) / pitch);  // 画面の一番下に見えている段
+
+      const svg = document.createElementNS(NS, "svg");
+      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      svg.setAttribute("preserveAspectRatio", "none");
+
+      for (let col = 0; col < cols; col++) {
+        for (let row = 0; row < rows; row++) {
+          const x = W - (col + 1) * pitch;  // 右から col 列目
+          const y = row * pitch;            // 上から row 段目
+          const pts = triangle(x, y, pitch, r, angle(col, row));
+          const poly = document.createElementNS(NS, "polygon");
+          poly.setAttribute("points", pts.map((p) => p.join(",")).join(" "));
+          poly.style.fill = colorOf(col, row, lastRow);
+          svg.appendChild(poly);
+        }
+      }
+      box.replaceChildren(svg);
+    }
+
+    draw();
+    window.addEventListener("resize", draw);
+  })();
+</script>
 </body>
 </html>
